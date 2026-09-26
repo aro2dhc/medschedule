@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useStore } from '../store';
 import { calculateBaseNorm } from '../utils/calendar';
 import { Cloud, Download, Upload, RefreshCw } from 'lucide-react';
+import { DEFAULT_GOOGLE_SCRIPT_URL } from '../config.js';
 
 export default function SettingsTab() {
   const { settings, updateSettings, importData, updateStaff } = useStore();
@@ -82,7 +83,9 @@ export default function SettingsTab() {
         ...wishActions,
         ...scheduleActions
       ];
-      const res = await fetch(settings.googleScriptUrl, {
+      const activeUrl = settings.googleScriptUrl || DEFAULT_GOOGLE_SCRIPT_URL;
+      if (!activeUrl) return alert('URL скрипта не задан!');
+      const res = await fetch(activeUrl, {
         method: 'POST',
         body: JSON.stringify({ actions }),
       });
@@ -97,10 +100,11 @@ export default function SettingsTab() {
   };
 
   const syncFromCloud = async () => {
-    if (!settings.googleScriptUrl) return alert('Введите URL скрипта!');
+    const activeUrl = settings.googleScriptUrl || DEFAULT_GOOGLE_SCRIPT_URL;
+    if (!activeUrl) return alert('URL скрипта не задан!');
     setSyncStatus('Загрузка...');
     try {
-      const url = settings.googleScriptUrl + (settings.googleScriptUrl.includes('?') ? '&' : '?') + 'month=' + settings.month;
+      const url = activeUrl + (activeUrl.includes('?') ? '&' : '?') + 'month=' + settings.month;
       const res = await fetch(url);
       const data = await res.json();
       if (data && (data.staff || data.staffByMonth || data.schedule)) {
@@ -281,47 +285,86 @@ export default function SettingsTab() {
           <div className="flex items-center justify-between">
             <h3 className="font-medium text-sm flex items-center gap-1.5">
               <Cloud size={16} className="text-blue-500" />
-              Синхронизация с Google Таблицами
+              Единая база данных отделения (Google Sheets)
             </h3>
             {syncStatus && (
-              <span className={`text-xs px-2 py-0.5 rounded-full ${
+              <span className={`text-xs px-2.5 py-1 rounded-full font-medium ${
                 syncStatus.includes('Ошибка')
                   ? 'bg-red-100 text-red-600 dark:bg-red-900/40 dark:text-red-400'
                   : syncStatus.includes('...')
                     ? 'bg-blue-100 text-blue-600 dark:bg-blue-900/40 dark:text-blue-400'
-                    : 'bg-green-100 text-green-600 dark:bg-green-900/40 dark:text-green-400'
+                    : 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300'
               }`}>
                 {syncStatus}
               </span>
             )}
           </div>
-          <div>
-            <label className="block text-xs font-medium mb-1 text-slate-500">
-              URL веб-приложения (Google Apps Script Webhook)
-            </label>
-            <input 
-              type="text" 
-              placeholder="https://script.google.com/macros/s/.../exec"
-              value={settings.googleScriptUrl || ''}
-              onChange={(e) => updateSettings({ googleScriptUrl: e.target.value })}
-              className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-sm font-mono"
-            />
-          </div>
-          <div className="flex flex-wrap gap-2 pt-1">
-            <button
-              onClick={syncFromCloud}
-              className="px-3 py-1.5 text-xs bg-blue-50 hover:bg-blue-100 dark:bg-blue-900/40 dark:hover:bg-blue-900/60 text-blue-600 dark:text-blue-300 rounded-lg transition-colors flex items-center gap-1.5"
-            >
-              <RefreshCw size={13} />
-              Загрузить из таблицы
-            </button>
-            <button
-              onClick={syncToCloud}
-              className="px-3 py-1.5 text-xs bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 rounded-lg transition-colors flex items-center gap-1.5"
-            >
-              <Cloud size={13} />
-              Принудительно выгрузить
-            </button>
+
+          <div className="p-3.5 bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 rounded-lg space-y-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <span className="flex h-2.5 w-2.5 relative">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
+                </span>
+                <span className="text-xs font-semibold text-slate-800 dark:text-slate-100">
+                  Подключено к общей облачной таблице отделения
+                </span>
+              </div>
+              <span className="text-[11px] font-medium text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 px-2 py-0.5 rounded border border-emerald-200 dark:border-emerald-800/50">
+                Автосинхронизация активна
+              </span>
+            </div>
+
+            <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
+              Все изменения графика автоматически сохраняются и передаются на устройства коллег. При открытии сайта всегда подтягиваются актуальные данные.
+            </p>
+
+            <div className="flex flex-wrap gap-2 pt-1">
+              <button
+                onClick={syncFromCloud}
+                className="px-3 py-1.5 text-xs font-medium bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors flex items-center gap-1.5 shadow-sm"
+              >
+                <RefreshCw size={13} />
+                Загрузить из облачной таблицы
+              </button>
+              <button
+                onClick={syncToCloud}
+                className="px-3 py-1.5 text-xs font-medium bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 rounded-lg transition-colors flex items-center gap-1.5 border border-slate-300 dark:border-slate-600"
+              >
+                <Cloud size={13} />
+                Принудительно выгрузить все данные
+              </button>
+            </div>
+
+            <details className="mt-2 pt-2 border-t border-slate-200 dark:border-slate-700 group">
+              <summary className="text-[11px] text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 cursor-pointer select-none font-medium">
+                Настройки подключения (для администратора)
+              </summary>
+              <div className="mt-2.5 space-y-2">
+                <label className="block text-[11px] text-slate-500">
+                  URL Google Apps Script Web App:
+                </label>
+                <div className="flex gap-2">
+                  <input 
+                    type="text" 
+                    placeholder={DEFAULT_GOOGLE_SCRIPT_URL}
+                    value={settings.googleScriptUrl || ''}
+                    onChange={(e) => updateSettings({ googleScriptUrl: e.target.value })}
+                    className="flex-1 px-2.5 py-1.5 border border-slate-300 dark:border-slate-600 rounded bg-white dark:bg-slate-700 text-xs font-mono"
+                  />
+                  {settings.googleScriptUrl && settings.googleScriptUrl !== DEFAULT_GOOGLE_SCRIPT_URL && (
+                    <button
+                      onClick={() => updateSettings({ googleScriptUrl: DEFAULT_GOOGLE_SCRIPT_URL })}
+                      className="px-2.5 py-1 text-xs text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600 rounded border border-slate-300 dark:border-slate-600 font-medium whitespace-nowrap"
+                      title="Сбросить на значение по умолчанию"
+                    >
+                      Сброс
+                    </button>
+                  )}
+                </div>
+              </div>
+            </details>
           </div>
         </div>
 

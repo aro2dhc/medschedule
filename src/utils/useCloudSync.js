@@ -1,8 +1,10 @@
 import { useEffect, useRef } from 'react';
 import { useStore } from '../store';
+import { DEFAULT_GOOGLE_SCRIPT_URL } from '../config.js';
 
 export function useCloudSync() {
-  const url = useStore((state) => state.settings?.googleScriptUrl);
+  const storeUrl = useStore((state) => state.settings?.googleScriptUrl);
+  const url = storeUrl || DEFAULT_GOOGLE_SCRIPT_URL;
   const currentMonth = useStore((state) => state.settings?.month);
   
   const isSaving = useRef(false);

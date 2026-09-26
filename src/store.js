@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { format } from 'date-fns';
 import { AUGUST_2026_STAFF, AUGUST_2026_SCHEDULE, AUGUST_2026_WISHES } from './utils/august2026Data.js';
+import { DEFAULT_GOOGLE_SCRIPT_URL } from './config.js';
 
 const INITIAL_STAFF = [
   { id: '1', name: 'Горбатенко М. М.', role: 'head', wardPriority: '0', rate: 1.0 },
@@ -38,7 +39,7 @@ export const useStore = create(
         dailyNorm: 7.7,
         numWards: 3,
         customHolidays: [], // "yyyy-MM-dd"
-        googleScriptUrl: '', // URL от Apps Script
+        googleScriptUrl: DEFAULT_GOOGLE_SCRIPT_URL || '', // URL от Apps Script
         headDeputyId: '20', // ID врача, который замещает заведующего
         signPPO: 'Л.В.Валек',
         signDirector: 'К.В.Дроздовский',
@@ -310,9 +311,14 @@ export const useStore = create(
         // 1. Settings
         if (data.settings) {
           const localMonth = newState.settings.month;
+          const currentGoogleScriptUrl = newState.settings.googleScriptUrl || DEFAULT_GOOGLE_SCRIPT_URL;
           newState.settings = { ...newState.settings, ...data.settings };
           // Preserve local month so it doesn't jump back during sync
           newState.settings.month = localMonth;
+          // Preserve valid script URL if remote payload had empty or missing URL
+          if (!newState.settings.googleScriptUrl && currentGoogleScriptUrl) {
+            newState.settings.googleScriptUrl = currentGoogleScriptUrl;
+          }
         }
 
         // 2. StaffByMonth
@@ -553,17 +559,28 @@ export const useStore = create(
           }
         }
 
-        if (changed || scheduleChanged || augustChanged) {
-          const updates = {};
-          if (changed || augustChanged) updates.staffByMonth = newStaffByMonth;
-          if (scheduleChanged || augustChanged) updates.schedule = newSchedule;
-          if (augustChanged) {
-            updates.hasAugust2026Data = true;
-            updates.wishes = newWishes;
-            updates.lockedMonths = newLocked;
-            // Переключаем активный месяц на Август 2026
-            updates.settings = { ...state.settings, month: '2026-08' };
+        const updates = {};
+        if (changed || augustChanged) updates.staffByMonth = newStaffByMonth;
+        if (scheduleChanged || augustChanged) updates.schedule = newSchedule;
+        if (augustChanged) {
+          updates.hasAugust2026Data = true;
+          updates.wishes = newWishes;
+          updates.lockedMonths = newLocked;
+          // Переключаем активный месяц на Август 2026
+          updates.settings = { ...(updates.settings || state.settings), month: '2026-08' };
+        }
+
+        // Автоматически подключаем прод-базу данных:
+        // Если ссылка пустая, либо если в браузере осталась старая тестовая ссылка
+        const OLD_DEV_URL = 'https://script.google.com/macros/s/AKfycbyzbj9QSg2sSs3rw3Hhs0VmyCrRkcCnBn1XlL5nIk05UXM8o_qNYr5cEC8hZuEWEsbt_A/exec';
+        if (DEFAULT_GOOGLE_SCRIPT_URL) {
+          const currentUrl = state.settings?.googleScriptUrl;
+          if (!currentUrl || currentUrl.trim() === '' || currentUrl === OLD_DEV_URL) {
+            updates.settings = { ...(updates.settings || state.settings), googleScriptUrl: DEFAULT_GOOGLE_SCRIPT_URL };
           }
+        }
+
+        if (Object.keys(updates).length > 0) {
           useStore.setState(updates);
         }
       }
