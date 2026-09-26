@@ -50,7 +50,7 @@ function doGet(e) {
     for (let i = 1; i < staffValues.length; i++) {
       let r = staffValues[i];
       if (r[0]) {
-        let month = r[6] ? String(r[6]) : '';
+        let month = r[6] ? formatAnyDate(r[6], true) : '';
         if (month && month.startsWith("'")) month = month.substring(1);
         
         if (reqMonth && month && month !== reqMonth) continue; // Skip other months

@@ -321,40 +321,47 @@ export const useStore = create(
           }
         }
 
-        // 2. StaffByMonth
-        if (data.staffByMonth && data.staffByMonth[reqMonth]) {
+        // 2. StaffByMonth (with key normalization for date strings from Google Sheets)
+        if (data.staffByMonth) {
           if (!newState.staffByMonth) newState.staffByMonth = {};
-          newState.staffByMonth[reqMonth] = data.staffByMonth[reqMonth].map(doc => {
-            if (doc.name && doc.name.includes('Парфенчик')) {
-              return { ...doc, name: doc.name.replace('Парфенчик', 'Крипень') };
-            }
-            return doc;
-          });
-        }
-
-        // Safety checks for local modifications
-        const hasPendingActions = Boolean(newState.actionQueue && newState.actionQueue.length > 0);
-        const isRecentlyEdited = Date.now() - (newState.lastLocalEditTime || 0) < 30000;
-
-        // 3. Wishes
-        let cloudWishesCount = 0;
-        if (data.wishes) {
-          for (let docId in data.wishes) {
-            for (let date in data.wishes[docId]) {
-              if (date.startsWith(reqMonth)) {
-                cloudWishesCount++;
+          
+          let staffList = data.staffByMonth[reqMonth];
+          if (!staffList || staffList.length === 0) {
+            // Find if any key matches reqMonth when converted to Date
+            for (let mKey in data.staffByMonth) {
+              if (mKey.length > 7) {
+                const parsed = new Date(mKey);
+                if (!isNaN(parsed.getTime())) {
+                  const norm = `${parsed.getFullYear()}-${String(parsed.getMonth() + 1).padStart(2, '0')}`;
+                  if (norm === reqMonth) {
+                    staffList = data.staffByMonth[mKey];
+                    break;
+                  }
+                }
               }
             }
           }
+
+          if (staffList && staffList.length > 0) {
+            newState.staffByMonth[reqMonth] = staffList.map(doc => {
+              if (doc.name && doc.name.includes('Парфенчик')) {
+                return { ...doc, name: doc.name.replace('Парфенчик', 'Крипень') };
+              }
+              return doc;
+            });
+          }
         }
-        if (!hasPendingActions && (cloudWishesCount > 0 || options.force)) {
+
+        // Safety checks for active local modifications (within last 4 seconds)
+        const isRecentlyEdited = Date.now() - (newState.lastLocalEditTime || 0) < 4000;
+
+        // 3. Wishes
+        if (data.wishes && (!isRecentlyEdited || options.force)) {
           if (!newState.wishes) newState.wishes = {};
-          if (options.force) {
-            for (let docId in newState.wishes) {
-              for (let date in newState.wishes[docId]) {
-                if (date.startsWith(reqMonth)) {
-                  delete newState.wishes[docId][date];
-                }
+          for (let docId in newState.wishes) {
+            for (let date in newState.wishes[docId]) {
+              if (date.startsWith(reqMonth)) {
+                delete newState.wishes[docId][date];
               }
             }
           }
@@ -369,17 +376,6 @@ export const useStore = create(
         }
 
         // 4. Schedule
-        let localScheduleCount = 0;
-        if (newState.schedule) {
-          for (let docId in newState.schedule) {
-            for (let date in newState.schedule[docId]) {
-              if (date.startsWith(reqMonth)) {
-                localScheduleCount++;
-              }
-            }
-          }
-        }
-
         let cloudScheduleCount = 0;
         if (data.schedule) {
           for (let docId in data.schedule) {
@@ -391,28 +387,16 @@ export const useStore = create(
           }
         }
 
-        // Защита: если локальный график заполнен (> 15 смен), а в облаке данных существенно меньше,
-        // фоновый опрос ни в коем случае НЕ затирает локальный график!
-        const isCloudIncomplete = localScheduleCount > 15 && cloudScheduleCount < (localScheduleCount * 0.7);
-
-        if (!options.force && (hasPendingActions || isRecentlyEdited || isCloudIncomplete)) {
-          console.warn('[Sync] Skipped cloud schedule merge to protect local data:', {
-            hasPendingActions,
-            isRecentlyEdited,
-            isCloudIncomplete,
-            localScheduleCount,
-            cloudScheduleCount
-          });
+        if (!options.force && isRecentlyEdited) {
+          console.warn('[Sync] Skipped cloud schedule merge to protect active local edits');
         } else if (cloudScheduleCount > 0 || options.force) {
           if (!newState.schedule) newState.schedule = {};
           
-          if (options.force || cloudScheduleCount >= localScheduleCount) {
-            // Remove local schedule for this month
-            for (let docId in newState.schedule) {
-              for (let date in newState.schedule[docId]) {
-                if (date.startsWith(reqMonth)) {
-                  delete newState.schedule[docId][date];
-                }
+          // Clear local schedule for this month so deletions/moves in cloud are properly reflected
+          for (let docId in newState.schedule) {
+            for (let date in newState.schedule[docId]) {
+              if (date.startsWith(reqMonth)) {
+                delete newState.schedule[docId][date];
               }
             }
           }

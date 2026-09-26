@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Calendar, Users, ListTodo, Table, Stethoscope, BarChart, Settings, Moon, Sun, Cloud, CloudUpload, CloudOff, ChevronLeft, ChevronRight, UserCheck } from 'lucide-react';
+import { Calendar, Users, ListTodo, Table, Stethoscope, BarChart, Settings, Moon, Sun, Cloud, CloudUpload, CloudOff, ChevronLeft, ChevronRight, UserCheck, RefreshCw } from 'lucide-react';
 import SettingsTab from './components/SettingsTab';
 import StaffTab from './components/StaffTab';
 import WishesTab from './components/WishesTab';
@@ -26,13 +26,56 @@ function formatMonthDisplay(monthStr) {
 
 function CloudIndicator() {
   const syncState = useStore(state => state.syncState || 'idle');
+  const lastSyncTime = useStore(state => state.lastSyncTime);
+
+  const handleRefresh = (e) => {
+    e.stopPropagation();
+    window.dispatchEvent(new CustomEvent('trigger-cloud-refresh'));
+  };
+
+  const timeStr = lastSyncTime ? new Date(lastSyncTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
+
   if (syncState === 'saving') {
-    return <div className="flex items-center gap-1.5 text-xs text-blue-500 bg-blue-50 px-2 py-1 rounded-full"><CloudUpload size={14} className="animate-pulse" /> Сохранение...</div>;
+    return (
+      <div className="flex items-center gap-1.5 text-xs text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/30 px-2.5 py-1 rounded-full font-medium shadow-sm">
+        <CloudUpload size={14} className="animate-pulse" />
+        <span>Сохранение...</span>
+      </div>
+    );
+  }
+  if (syncState === 'loading') {
+    return (
+      <div className="flex items-center gap-1.5 text-xs text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/30 px-2.5 py-1 rounded-full font-medium shadow-sm">
+        <RefreshCw size={13} className="animate-spin text-blue-500" />
+        <span>Обновление...</span>
+      </div>
+    );
   }
   if (syncState === 'error') {
-    return <div className="flex items-center gap-1.5 text-xs text-red-500 bg-red-50 px-2 py-1 rounded-full"><CloudOff size={14} /> Ошибка сети</div>;
+    return (
+      <button 
+        onClick={handleRefresh}
+        title="Ошибка подключения. Нажмите для повтора"
+        className="flex items-center gap-1.5 text-xs text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/30 hover:bg-red-100 dark:hover:bg-red-900/50 px-2.5 py-1 rounded-full transition-colors font-medium border border-red-200 dark:border-red-800"
+      >
+        <CloudOff size={14} />
+        <span>Сбой сети (повторить)</span>
+      </button>
+    );
   }
-  return <div className="flex items-center gap-1.5 text-xs text-slate-400"><Cloud size={14} /> Сохранено</div>;
+  return (
+    <div className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800/90 border border-slate-200/70 dark:border-slate-700 px-2.5 py-1 rounded-full">
+      <Cloud size={14} className="text-emerald-500" />
+      <span className="hidden sm:inline font-mono">{timeStr ? `${timeStr}` : 'Облако'}</span>
+      <button 
+        onClick={handleRefresh} 
+        title="Обновить расписание прямо сейчас" 
+        className="p-0.5 hover:text-blue-600 dark:hover:text-blue-400 transition-colors ml-0.5"
+      >
+        <RefreshCw size={12} />
+      </button>
+    </div>
+  );
 }
 
 export default function App() {
@@ -91,7 +134,7 @@ export default function App() {
       updates.wishes = newWishes;
     }
 
-    if (state.settings.month !== '2026-08') {
+    if (!state.hasAugust2026Data && state.settings.month !== '2026-08') {
       updates.settings = { ...state.settings, month: '2026-08' };
     }
 
