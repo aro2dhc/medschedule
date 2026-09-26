@@ -352,61 +352,103 @@ export const useStore = create(
           }
         }
 
-        // Safety checks for active local modifications (within last 4 seconds)
-        const isRecentlyEdited = Date.now() - (newState.lastLocalEditTime || 0) < 4000;
+        // Safety checks for active local modifications (within last 10 seconds)
+        const isRecentlyEdited = Date.now() - (newState.lastLocalEditTime || 0) < 10000;
+        const hasPendingActions = Boolean(newState.actionQueue && newState.actionQueue.length > 0);
 
-        // 3. Wishes
-        if (data.wishes && (!isRecentlyEdited || options.force)) {
-          if (!newState.wishes) newState.wishes = {};
-          for (let docId in newState.wishes) {
-            for (let date in newState.wishes[docId]) {
-              if (date.startsWith(reqMonth)) {
-                delete newState.wishes[docId][date];
-              }
-            }
-          }
+        // 3. Wishes with date key normalization
+        let cloudWishesCount = 0;
+        const normalizedWishes = {};
+        if (data.wishes) {
           for (let docId in data.wishes) {
-            if (!newState.wishes[docId]) newState.wishes[docId] = {};
-            for (let date in data.wishes[docId]) {
-              if (date.startsWith(reqMonth)) {
-                newState.wishes[docId][date] = data.wishes[docId][date];
+            normalizedWishes[docId] = {};
+            for (let rawDate in data.wishes[docId]) {
+              let cleanDate = rawDate;
+              if (cleanDate.startsWith("'")) cleanDate = cleanDate.substring(1);
+              if (cleanDate.length > 10) {
+                const parsed = new Date(cleanDate);
+                if (!isNaN(parsed.getTime())) {
+                  const y = parsed.getFullYear();
+                  const m = String(parsed.getMonth() + 1).padStart(2, '0');
+                  const d = String(parsed.getDate()).padStart(2, '0');
+                  cleanDate = `${y}-${m}-${d}`;
+                }
+              }
+              if (cleanDate.startsWith(reqMonth)) {
+                normalizedWishes[docId][cleanDate] = data.wishes[docId][rawDate];
+                cloudWishesCount++;
               }
             }
           }
         }
 
-        // 4. Schedule
+        if ((!isRecentlyEdited && !hasPendingActions) || options.force) {
+          if (!newState.wishes) newState.wishes = {};
+          
+          // Only clear local wishes if cloud returned actual wishes or on force
+          if (cloudWishesCount > 0 || options.force) {
+            for (let docId in newState.wishes) {
+              for (let date in newState.wishes[docId]) {
+                if (date.startsWith(reqMonth)) {
+                  delete newState.wishes[docId][date];
+                }
+              }
+            }
+          }
+
+          // Apply normalized cloud wishes
+          for (let docId in normalizedWishes) {
+            if (!newState.wishes[docId]) newState.wishes[docId] = {};
+            for (let date in normalizedWishes[docId]) {
+              newState.wishes[docId][date] = normalizedWishes[docId][date];
+            }
+          }
+        }
+
+        // 4. Schedule with date key normalization
         let cloudScheduleCount = 0;
+        const normalizedSchedule = {};
         if (data.schedule) {
           for (let docId in data.schedule) {
-            for (let date in data.schedule[docId]) {
-              if (date.startsWith(reqMonth)) {
+            normalizedSchedule[docId] = {};
+            for (let rawDate in data.schedule[docId]) {
+              let cleanDate = rawDate;
+              if (cleanDate.startsWith("'")) cleanDate = cleanDate.substring(1);
+              if (cleanDate.length > 10) {
+                const parsed = new Date(cleanDate);
+                if (!isNaN(parsed.getTime())) {
+                  const y = parsed.getFullYear();
+                  const m = String(parsed.getMonth() + 1).padStart(2, '0');
+                  const d = String(parsed.getDate()).padStart(2, '0');
+                  cleanDate = `${y}-${m}-${d}`;
+                }
+              }
+              if (cleanDate.startsWith(reqMonth)) {
+                normalizedSchedule[docId][cleanDate] = data.schedule[docId][rawDate];
                 cloudScheduleCount++;
               }
             }
           }
         }
 
-        if (!options.force && isRecentlyEdited) {
-          console.warn('[Sync] Skipped cloud schedule merge to protect active local edits');
-        } else if (cloudScheduleCount > 0 || options.force) {
-          if (!newState.schedule) newState.schedule = {};
-          
-          // Clear local schedule for this month so deletions/moves in cloud are properly reflected
-          for (let docId in newState.schedule) {
-            for (let date in newState.schedule[docId]) {
-              if (date.startsWith(reqMonth)) {
-                delete newState.schedule[docId][date];
+        if ((!isRecentlyEdited && !hasPendingActions) || options.force) {
+          if (cloudScheduleCount > 0 || options.force) {
+            if (!newState.schedule) newState.schedule = {};
+            
+            // Clear local schedule for this month so deletions/moves in cloud are properly reflected
+            for (let docId in newState.schedule) {
+              for (let date in newState.schedule[docId]) {
+                if (date.startsWith(reqMonth)) {
+                  delete newState.schedule[docId][date];
+                }
               }
             }
-          }
 
-          // Apply cloud schedule
-          for (let docId in data.schedule) {
-            if (!newState.schedule[docId]) newState.schedule[docId] = {};
-            for (let date in data.schedule[docId]) {
-              if (date.startsWith(reqMonth)) {
-                newState.schedule[docId][date] = data.schedule[docId][date];
+            // Apply normalized cloud schedule
+            for (let docId in normalizedSchedule) {
+              if (!newState.schedule[docId]) newState.schedule[docId] = {};
+              for (let date in normalizedSchedule[docId]) {
+                newState.schedule[docId][date] = normalizedSchedule[docId][date];
               }
             }
           }

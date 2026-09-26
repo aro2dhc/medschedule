@@ -15,10 +15,11 @@ export function useCloudSync() {
   const fetchMonthData = useCallback(async (force = false) => {
     if (!url || !currentMonth) return;
     const state = useStore.getState();
-    const isRecentlyEdited = Date.now() - (state.lastLocalEditTime || 0) < 4000;
+    const isRecentlyEdited = Date.now() - (state.lastLocalEditTime || 0) < 10000;
+    const hasPending = (state.actionQueue || []).length > 0;
     
-    // Не затирать, если пользователь активно кликает прямо сейчас (в пределах 4 сек)
-    if (!force && (isSaving.current || isFetching.current || isRecentlyEdited)) {
+    // Не затирать, если пользователь активно кликает прямо сейчас (в пределах 10 сек) или есть несохраненная очередь
+    if (!force && (isSaving.current || isFetching.current || isRecentlyEdited || hasPending)) {
       return;
     }
 

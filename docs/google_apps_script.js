@@ -1,4 +1,5 @@
 function formatAnyDate(d, isMonth = false) {
+  if (!d) return '';
   if (d instanceof Date) {
     let year = d.getFullYear();
     let month = String(d.getMonth() + 1).padStart(2, '0');
@@ -6,9 +7,29 @@ function formatAnyDate(d, isMonth = false) {
     if (isMonth) return year + '-' + month;
     return year + '-' + month + '-' + day;
   }
-  let str = String(d);
+  let str = String(d).trim();
   if (str.startsWith("'")) {
-    str = str.substring(1);
+    str = str.substring(1).trim();
+  }
+  // Standard format YYYY-MM-DD
+  if (/^\d{4}-\d{2}-\d{2}/.test(str)) {
+    if (isMonth) return str.substring(0, 7);
+    return str.substring(0, 10);
+  }
+  // Standard format YYYY-MM
+  if (/^\d{4}-\d{2}$/.test(str)) {
+    return str;
+  }
+  // Long localized string format like "Tue Sep 22 2026 00:00:00..."
+  if (str.length > 10) {
+    let parsed = new Date(str);
+    if (!isNaN(parsed.getTime())) {
+      let year = parsed.getFullYear();
+      let month = String(parsed.getMonth() + 1).padStart(2, '0');
+      let day = String(parsed.getDate()).padStart(2, '0');
+      if (isMonth) return year + '-' + month;
+      return year + '-' + month + '-' + day;
+    }
   }
   return str;
 }
@@ -191,20 +212,21 @@ function doPost(e) {
          const p = action.payload;
 
          if (t === 'SET_SCHEDULE') {
+           let targetDate = formatAnyDate(p.dateStr);
            let found = false;
            for (let i = 1; i < schData.length; i++) {
-             if (String(schData[i][0]) === String(p.doctorId) && formatAnyDate(schData[i][1]) === p.dateStr) {
+             if (String(schData[i][0]) === String(p.doctorId) && formatAnyDate(schData[i][1]) === targetDate) {
                if (!p.shiftData || !p.shiftData.shift) {
                  schData.splice(i, 1);
                } else {
-                 schData[i] = [p.doctorId, "'" + p.dateStr, p.shiftData.shift || '', p.shiftData.wardId || '1', !!p.shiftData.isExtra, p.shiftData.customTime || ''];
+                 schData[i] = [p.doctorId, "'" + targetDate, p.shiftData.shift || '', p.shiftData.wardId || '1', !!p.shiftData.isExtra, p.shiftData.customTime || ''];
                }
                found = true;
                break;
              }
            }
            if (!found && p.shiftData && p.shiftData.shift) {
-             schData.push([p.doctorId, "'" + p.dateStr, p.shiftData.shift || '', p.shiftData.wardId || '1', !!p.shiftData.isExtra, p.shiftData.customTime || '']);
+             schData.push([p.doctorId, "'" + targetDate, p.shiftData.shift || '', p.shiftData.wardId || '1', !!p.shiftData.isExtra, p.shiftData.customTime || '']);
            }
            schChanged = true;
          }
@@ -235,20 +257,21 @@ function doPost(e) {
            schChanged = true;
          }
          else if (t === 'SET_WISH') {
+           let targetDate = formatAnyDate(p.dateStr);
            let found = false;
            for (let i = 1; i < wishData.length; i++) {
-             if (String(wishData[i][0]) === String(p.doctorId) && formatAnyDate(wishData[i][1]) === p.dateStr) {
+             if (String(wishData[i][0]) === String(p.doctorId) && formatAnyDate(wishData[i][1]) === targetDate) {
                if (!p.wishType) {
                  wishData.splice(i, 1);
                } else {
-                 wishData[i] = [p.doctorId, "'" + p.dateStr, p.wishType];
+                 wishData[i] = [p.doctorId, "'" + targetDate, p.wishType];
                }
                found = true;
                break;
              }
            }
            if (!found && p.wishType) {
-             wishData.push([p.doctorId, "'" + p.dateStr, p.wishType]);
+             wishData.push([p.doctorId, "'" + targetDate, p.wishType]);
            }
            wishChanged = true;
          }
