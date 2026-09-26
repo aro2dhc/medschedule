@@ -1,11 +1,11 @@
 import { useState } from 'react';
-import { useStore } from '../store';
+import { useStore, deduplicateStaff } from '../store';
 import { Trash2, Plus } from 'lucide-react';
 
 export default function StaffTab() {
   const { settings, updateSettings, addStaff, updateStaff, removeStaff } = useStore();
   const staffByMonth = useStore(state => state.staffByMonth);
-  const staff = staffByMonth?.[settings.month] || [];
+  const staff = deduplicateStaff(staffByMonth?.[settings.month] || []);
   const [newDoc, setNewDoc] = useState({ name: '', role: 'duty', wardPriority: '1', rate: 1.0 });
 
   const handleAdd = (e) => {

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useStore } from '../store';
+import { useStore, deduplicateStaff } from '../store';
 import { getMonthDays, isDayOff, isPreHoliday, calculateAllStats } from '../utils/calendar';
 import { SHIFT_TYPES } from '../utils/generator';
 import { exportWardsToCSV } from '../utils/exportUtils';
@@ -22,7 +22,7 @@ const CUSTOM_TIME_PRESETS = [
 export default function WardTab() {
   const { settings, schedule, setSchedule } = useStore();
   const staffByMonth = useStore(state => state.staffByMonth);
-  const staff = staffByMonth?.[settings.month] || [];
+  const staff = deduplicateStaff(staffByMonth?.[settings.month] || []);
   const days = getMonthDays(settings.month);
   const wards = Array.from({ length: settings.numWards }).map((_, i) => ({ id: String(i + 1), name: `Палата №${i + 1}` }));
 

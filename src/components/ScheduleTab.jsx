@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useStore } from '../store';
+import { useStore, deduplicateStaff } from '../store';
 import { getMonthDays, isDayOff, isPreHoliday, calculateBaseNorm } from '../utils/calendar';
 import { autoGenerateSchedule } from '../utils/generator';
 import PrintSchedule from './PrintSchedule';
@@ -10,7 +10,7 @@ import { exportScheduleToCSV } from '../utils/exportUtils';
 export default function ScheduleTab() {
   const { settings, schedule, setSchedule, clearScheduleForMonth } = useStore();
   const staffByMonth = useStore(state => state.staffByMonth);
-  const staff = staffByMonth?.[settings.month] || [];
+  const staff = deduplicateStaff(staffByMonth?.[settings.month] || []);
   const days = getMonthDays(settings.month);
   const baseNorm = calculateBaseNorm(settings.month, settings.customHolidays, settings.dailyNorm);
 

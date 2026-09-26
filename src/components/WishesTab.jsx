@@ -1,4 +1,4 @@
-import { useStore } from '../store';
+import { useStore, deduplicateStaff } from '../store';
 import { getMonthDays, isDayOff } from '../utils/calendar';
 
 const WISH_TYPES = {
@@ -16,7 +16,7 @@ const WISH_TYPES = {
 export default function WishesTab() {
   const { settings, wishes, setWish } = useStore();
   const staffByMonth = useStore(state => state.staffByMonth);
-  const staff = staffByMonth?.[settings.month] || [];
+  const staff = deduplicateStaff(staffByMonth?.[settings.month] || []);
   const days = getMonthDays(settings.month);
 
   return (

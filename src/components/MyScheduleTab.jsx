@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useStore } from '../store';
+import { useStore, deduplicateStaff } from '../store';
 import { getMonthDays, isDayOff, isPreHoliday, calculateAllStats } from '../utils/calendar';
 import { SHIFT_TYPES } from '../utils/generator';
 import { exportDoctorScheduleToICS } from '../utils/icsExport';
@@ -8,7 +8,7 @@ import { Calendar, Clock, Moon, Award, Download, Users, List, Grid } from 'lucid
 export default function MyScheduleTab() {
   const { settings, schedule } = useStore();
   const staffByMonth = useStore(state => state.staffByMonth);
-  const staff = staffByMonth?.[settings.month] || [];
+  const staff = deduplicateStaff(staffByMonth?.[settings.month] || []);
   const days = getMonthDays(settings.month);
 
   // Сохранение и восстановление выбранного врача в localStorage

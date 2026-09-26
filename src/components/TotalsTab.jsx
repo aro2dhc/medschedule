@@ -1,11 +1,11 @@
-import { useStore } from '../store';
+import { useStore, deduplicateStaff } from '../store';
 import { getMonthDays, calculateAllStats } from '../utils/calendar';
 import { SHIFT_TYPES } from '../utils/generator';
 
 export default function TotalsTab() {
   const { settings, schedule } = useStore();
   const staffByMonth = useStore(state => state.staffByMonth);
-  const staff = staffByMonth?.[settings.month] || [];
+  const staff = deduplicateStaff(staffByMonth?.[settings.month] || []);
   const days = getMonthDays(settings.month);
   
   const stats = calculateAllStats(staff, schedule, days, settings, SHIFT_TYPES);

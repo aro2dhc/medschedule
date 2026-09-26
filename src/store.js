@@ -28,8 +28,43 @@ const INITIAL_STAFF = [
   { id: '21', name: 'Малышко Д. А.', role: 'duty', wardPriority: '1', rate: 1.0, isMaternity: true },
   { id: '5be65b17-f175-43db-9064-01533dbdccb3', name: 'Коровиков Д. Д.', role: 'duty', wardPriority: '1', rate: 1.0 },
   { id: '6fdb06d3-000a-4fc1-8872-be8f07c9f587', name: 'Крипень Е. С.', role: 'duty', wardPriority: '1', rate: 1.0 },
-  { id: '4b73a440-7d14-4776-b818-9760f0937479', name: 'Арцименя В. А.', role: 'duty', wardPriority: '1', rate: 1.0 },
 ];
+
+export function deduplicateStaff(staffList) {
+  if (!Array.isArray(staffList)) return [];
+  const seenIds = new Set();
+  const seenNames = new Set();
+  const result = [];
+
+  const normalizeName = (name) => {
+    return (name || '')
+      .trim()
+      .replace(/\s+/g, ' ')
+      .replace(/Парфенчик/gi, 'Крипень')
+      .replace(/Карсеко/gi, 'Карсека')
+      .replace(/Малашко/gi, 'Малышко')
+      .toLowerCase();
+  };
+
+  for (const doc of staffList) {
+    if (!doc || !doc.name) continue;
+    const norm = normalizeName(doc.name);
+    const id = String(doc.id || '').trim();
+    if ((id && seenIds.has(id)) || (norm && seenNames.has(norm))) {
+      continue;
+    }
+    if (id) seenIds.add(id);
+    if (norm) seenNames.add(norm);
+
+    let cleanName = doc.name.trim().replace(/\s+/g, ' ');
+    if (cleanName.includes('Парфенчик')) cleanName = cleanName.replace('Парфенчик', 'Крипень');
+    if (cleanName.includes('Карсеко')) cleanName = cleanName.replace('Карсеко', 'Карсека');
+    if (cleanName.includes('Малашко')) cleanName = cleanName.replace('Малашко', 'Малышко');
+
+    result.push({ ...doc, name: cleanName });
+  }
+  return result;
+}
 
 export const useStore = create(
   persist(
@@ -134,18 +169,12 @@ export const useStore = create(
                  if (sourceStaff.length === 0) sourceStaff = INITIAL_STAFF;
                }
                
+               sourceStaff = deduplicateStaff(sourceStaff);
 
                updates.staffByMonth = {
                  ...staffByMonth,
                  [newMonth]: JSON.parse(JSON.stringify(sourceStaff))
                };
-               
-               // We MUST push these cloned doctors to the cloud!
-               const clonedActions = sourceStaff.map(doc => ({
-                 type: 'ADD_STAFF',
-                 payload: { doctor: doc, month: newMonth }
-               }));
-               updates.actionQueue = [...newQueue, ...clonedActions];
             }
           }
           return updates;
@@ -348,12 +377,7 @@ export const useStore = create(
           }
 
           if (staffList && staffList.length > 0) {
-            newState.staffByMonth[reqMonth] = staffList.map(doc => {
-              if (doc.name && doc.name.includes('Парфенчик')) {
-                return { ...doc, name: doc.name.replace('Парфенчик', 'Крипень') };
-              }
-              return doc;
-            });
+            newState.staffByMonth[reqMonth] = deduplicateStaff(staffList);
           }
         }
 
@@ -546,16 +570,11 @@ export const useStore = create(
         let changed = false;
         const newStaffByMonth = { ...(state.staffByMonth || {}) };
         
-        // 1. Автозамена Парфенчик -> Крипень
+        // 1. Дедупликация и автозамена Парфенчик -> Крипень для всех месяцев
         Object.keys(newStaffByMonth).forEach(m => {
-          newStaffByMonth[m] = newStaffByMonth[m].map(doc => {
-            if (doc.name && doc.name.includes('Парфенчик')) {
-              changed = true;
-              return { ...doc, name: doc.name.replace('Парфенчик', 'Крипень') };
-            }
-            return doc;
-          });
+          newStaffByMonth[m] = deduplicateStaff(newStaffByMonth[m]);
         });
+        changed = true;
 
         // 2. В сентябре 2026 Мелюкова — дежурный врач (duty)
         if (newStaffByMonth['2026-09']) {
