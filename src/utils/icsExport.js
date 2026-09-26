@@ -67,8 +67,17 @@ export function exportDoctorScheduleToICS(doc, days, schedule, staff, monthStr) 
 
     const wardText = shiftData.wardId ? `Палата №${shiftData.wardId}` : '';
     const colleaguesText = colleagues.length > 0 ? `\\nКоллеги по дежурству:\\n- ${colleagues.join('\\n- ')}` : '';
+    const isCustom19 = shiftData.customTime && shiftData.customTime.includes('19');
+    const isDayStaff = doc.role === 'day' || doc.role === 'head';
 
-    if (shift === 'С') {
+    if (isCustom19) {
+      summary = `🏥 Дежурство до 19:00 (ОАР${wardText ? ', ' + wardText : ''})`;
+      dtStart = toICalDateTime(dateObj, isDayStaff ? '08:00' : '15:42');
+      dtEnd = toICalDateTime(dateObj, '19:00');
+      description = isDayStaff 
+        ? `Дежурство с 8:00 до 19:00 (11 ч).\\n${wardText}${colleaguesText}`
+        : `Дежурство с 15:42 до 19:00 (3.3 ч).\\n${wardText}${colleaguesText}`;
+    } else if (shift === 'С') {
       summary = `🏥 Суточное дежурство (ОАР${wardText ? ', ' + wardText : ''})`;
       dtStart = toICalDateTime(dateObj, '08:00');
       const nextDay = addDays(dateObj, 1);

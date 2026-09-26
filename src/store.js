@@ -57,7 +57,7 @@ export const useStore = create(
       wishes: { ...AUGUST_2026_WISHES }, // { doctorId: { "yyyy-MM-dd": "vacation" | "sick" | "course" | "cant" | "day" | "night" | "24h" } }
       schedule: { ...AUGUST_2026_SCHEDULE }, // { doctorId: { "yyyy-MM-dd": { shift: "Д"|"Д/Н"|"С", wardId: "1", isExtra: false, targetWard: null } } }
       replacements: {}, // { absentDocId: replacementDocId }
-      lockedMonths: ['2026-08'], // ['2026-08', ...]
+      lockedMonths: [], // ['2026-08', ...]
 
       // Actions
       clearActionQueue: () => set({ actionQueue: [] }),
@@ -541,9 +541,6 @@ export const useStore = create(
           Object.keys(AUGUST_2026_SCHEDULE).forEach(docId => {
             newSchedule[docId] = { ...(newSchedule[docId] || {}), ...AUGUST_2026_SCHEDULE[docId] };
           });
-          if (!newLocked.includes('2026-08')) {
-            newLocked.push('2026-08');
-          }
         } else {
           // Ensure August 2026 contains customTime for Gorbatenko if loaded previously
           if (newSchedule['1']?.['2026-08-03'] && !newSchedule['1']['2026-08-03'].customTime) {

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useStore } from '../store';
-import { getMonthDays, isDayOff, calculateBaseNorm } from '../utils/calendar';
+import { getMonthDays, isDayOff, isPreHoliday, calculateBaseNorm } from '../utils/calendar';
 import { autoGenerateSchedule } from '../utils/generator';
 import PrintSchedule from './PrintSchedule';
 import ScheduleValidator from './ScheduleValidator';
@@ -220,8 +220,10 @@ export default function ScheduleTab() {
               </thead>
               <tbody>
                 {staff.map(doc => {
-                  const prevShift = prevMonthLastDateStr ? schedule[doc.id]?.[prevMonthLastDateStr]?.shift : null;
-                  const hasDay1CarryOver = prevShift === 'С' || prevShift === 'Д/Н';
+                  const prevData = prevMonthLastDateStr ? schedule[doc.id]?.[prevMonthLastDateStr] : null;
+                  const prevShift = prevData?.shift;
+                  const prevEnds19 = prevData?.customTime && prevData.customTime.includes('19');
+                  const hasDay1CarryOver = (prevShift === 'С' || prevShift === 'Д/Н') && !prevEnds19;
                   const isRowHovered = hoveredCell.docId === doc.id;
 
                   return (
@@ -247,6 +249,23 @@ export default function ScheduleTab() {
                         const dayOff = isDayOff(d.date, d.dateStr, settings.customHolidays);
                         const conflict = hasConflict(doc.id, d.dateStr, val);
                         const showCarryBadge = dIdx === 0 && hasDay1CarryOver;
+                        const isPre = isPreHoliday(d.dateStr, settings.customHolidays);
+                        const isDayStaff = doc && (doc.role === 'day' || doc.role === 'head');
+                        const isCustom19 = shiftData?.customTime && shiftData.customTime.includes('19');
+                        let shiftTimeTooltip = '';
+                        if (isCustom19) {
+                          shiftTimeTooltip = isDayStaff 
+                            ? '8:00 – 19:00 (11.0 ч)' 
+                            : `${isPre ? '14:42' : '15:42'} – 19:00 (${isPre ? '4.3' : '3.3'} ч)`;
+                        } else if (shiftData?.customTime) {
+                          shiftTimeTooltip = `Индивидуальное время: ${shiftData.customTime}`;
+                        } else if (val === 'С') {
+                          shiftTimeTooltip = '8:00 – 08:00 след. дня (24 ч)';
+                        } else if (val === 'Д/Н') {
+                          shiftTimeTooltip = `${isPre ? '14:42' : '15:42'} – 08:00 след. дня (${isPre ? '17.3' : '16.3'} ч)`;
+                        } else if (val === 'Д') {
+                          shiftTimeTooltip = `8:00 – ${isPre ? '14:42' : '15:42'} (${isPre ? '6.7' : '7.7'} ч)`;
+                        }
 
                         const isColHovered = hoveredCell.dayNum === d.dayNum;
                         const isCellHovered = isRowHovered && isColHovered;
@@ -278,7 +297,7 @@ export default function ScheduleTab() {
                             {shiftData?.customTime && (
                               <div 
                                 className="absolute bottom-0 inset-x-0 text-[7px] leading-tight font-semibold bg-amber-200/90 dark:bg-amber-900/90 text-amber-900 dark:text-amber-100 text-center truncate px-0.5 pointer-events-none z-1" 
-                                title={`Индивидуальное время: ${shiftData.customTime}`}
+                                title={shiftTimeTooltip || `Индивидуальное время: ${shiftData.customTime}`}
                               >
                                 {shiftData.customTime}
                               </div>
@@ -286,6 +305,7 @@ export default function ScheduleTab() {
                             <select
                               value={val}
                               disabled={isLocked}
+                              title={shiftTimeTooltip || undefined}
                               onChange={(e) => {
                                 if (isLocked) return;
                                 if (!e.target.value) setSchedule(doc.id, d.dateStr, null);

@@ -55,15 +55,17 @@ export function useCloudSync() {
   useEffect(() => {
     if (!url) return;
     
+    let prevQueue = useStore.getState().actionQueue;
     const unsub = useStore.subscribe((state) => {
+      if (state.actionQueue === prevQueue) return;
+      prevQueue = state.actionQueue;
+
       const queue = state.actionQueue || [];
       if (queue.length === 0) return;
 
       if (debounceTimer.current) {
         clearTimeout(debounceTimer.current);
       }
-
-      useStore.setState({ syncState: 'saving' });
 
       debounceTimer.current = setTimeout(async () => {
         if (isSaving.current) return;

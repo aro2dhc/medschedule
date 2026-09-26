@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useStore } from '../store';
-import { getMonthDays, isDayOff, calculateAllStats } from '../utils/calendar';
+import { getMonthDays, isDayOff, isPreHoliday, calculateAllStats } from '../utils/calendar';
 import { SHIFT_TYPES } from '../utils/generator';
 import { exportWardsToCSV } from '../utils/exportUtils';
 import PrintWards from './PrintWards';
@@ -362,20 +362,47 @@ export default function WardTab() {
                               {/* Основные дежуранты */}
                               {docs.map(doc => {
                                 const docShift = schedule[doc.id][d.dateStr];
+                                const isCustom19 = docShift.customTime && docShift.customTime.includes('19');
+                                const isPre = isPreHoliday(d.dateStr, settings.customHolidays);
+                                const isDayStaff = doc && (doc.role === 'day' || doc.role === 'head');
+                                const selectVal = isCustom19 ? 'до 19:00' : (docShift.customTime || docShift.shift);
+                                const timeTooltip = isCustom19 
+                                  ? (isDayStaff ? '8:00 – 19:00 (11.0 ч)' : `${isPre ? '14:42' : '15:42'} – 19:00 (${isPre ? '4.3' : '3.3'} ч)`)
+                                  : (docShift.customTime ? `Время: ${docShift.customTime}` : docShift.shift === 'С' ? 'Сутки (24ч)' : 'День/Ночь (16.3ч)');
+
                                 return (
-                                  <div key={doc.id} className="flex items-center justify-between bg-blue-100 dark:bg-blue-900/40 text-blue-800 dark:text-blue-300 px-1 py-1 rounded text-xs font-medium gap-1">
+                                  <div key={doc.id} title={timeTooltip} className="flex items-center justify-between bg-blue-100 dark:bg-blue-900/40 text-blue-800 dark:text-blue-300 px-1 py-1 rounded text-xs font-medium gap-1">
                                     <div className="flex items-center gap-1 overflow-hidden min-w-0 flex-1">
                                       <select
-                                        value={docShift.shift}
+                                        value={selectVal}
                                         disabled={isLocked}
-                                        onChange={(e) => setSchedule(doc.id, d.dateStr, { ...docShift, shift: e.target.value, wardId: docShift?.wardId || w.id })}
+                                        onChange={(e) => {
+                                          const val = e.target.value;
+                                          if (val === 'до 19:00') {
+                                            const baseShift = docShift.shift || (isDayStaff ? 'С' : 'Д/Н');
+                                            setSchedule(doc.id, d.dateStr, {
+                                              ...docShift,
+                                              shift: baseShift,
+                                              customTime: 'до 19.00',
+                                              wardId: docShift?.wardId || w.id
+                                            });
+                                          } else {
+                                            const updated = { ...docShift, shift: val, wardId: docShift?.wardId || w.id };
+                                            delete updated.customTime;
+                                            setSchedule(doc.id, d.dateStr, updated);
+                                          }
+                                        }}
                                         className="bg-white/50 dark:bg-black/20 rounded text-[10px] font-bold cursor-pointer disabled:cursor-not-allowed focus:outline-none shrink-0"
                                       >
                                         <option value="С">С</option>
                                         <option value="Д/Н">Д/Н</option>
+                                        <option value="до 19:00">до 19:00</option>
+                                        {docShift.customTime && !isCustom19 && (
+                                          <option value={docShift.customTime}>{docShift.customTime}</option>
+                                        )}
                                       </select>
                                       <span className="truncate" title={doc.name}>{doc.name}</span>
-                                      {docShift.customTime && (
+                                      {docShift.customTime && !isCustom19 && (
                                         <button
                                           type="button"
                                           disabled={isLocked}
@@ -411,20 +438,47 @@ export default function WardTab() {
                               {/* Доп врачи */}
                               {extras.map(doc => {
                                 const docShift = schedule[doc.id][d.dateStr];
+                                const isCustom19 = docShift.customTime && docShift.customTime.includes('19');
+                                const isPre = isPreHoliday(d.dateStr, settings.customHolidays);
+                                const isDayStaff = doc && (doc.role === 'day' || doc.role === 'head');
+                                const selectVal = isCustom19 ? 'до 19:00' : (docShift.customTime || docShift.shift);
+                                const timeTooltip = isCustom19 
+                                  ? (isDayStaff ? '8:00 – 19:00 (11.0 ч)' : `${isPre ? '14:42' : '15:42'} – 19:00 (${isPre ? '4.3' : '3.3'} ч)`)
+                                  : (docShift.customTime ? `Время: ${docShift.customTime}` : docShift.shift === 'С' ? 'Сутки (24ч)' : 'День/Ночь (16.3ч)');
+
                                 return (
-                                  <div key={doc.id} className="flex items-center justify-between bg-purple-100 dark:bg-purple-900/40 text-purple-800 dark:text-purple-300 px-1 py-1 rounded text-xs font-medium gap-1">
+                                  <div key={doc.id} title={timeTooltip} className="flex items-center justify-between bg-purple-100 dark:bg-purple-900/40 text-purple-800 dark:text-purple-300 px-1 py-1 rounded text-xs font-medium gap-1">
                                     <div className="flex items-center gap-1 overflow-hidden min-w-0 flex-1">
                                       <select
-                                        value={docShift.shift}
+                                        value={selectVal}
                                         disabled={isLocked}
-                                        onChange={(e) => setSchedule(doc.id, d.dateStr, { ...docShift, shift: e.target.value, wardId: docShift?.wardId || w.id })}
+                                        onChange={(e) => {
+                                          const val = e.target.value;
+                                          if (val === 'до 19:00') {
+                                            const baseShift = docShift.shift || (isDayStaff ? 'С' : 'Д/Н');
+                                            setSchedule(doc.id, d.dateStr, {
+                                              ...docShift,
+                                              shift: baseShift,
+                                              customTime: 'до 19.00',
+                                              wardId: docShift?.wardId || w.id
+                                            });
+                                          } else {
+                                            const updated = { ...docShift, shift: val, wardId: docShift?.wardId || w.id };
+                                            delete updated.customTime;
+                                            setSchedule(doc.id, d.dateStr, updated);
+                                          }
+                                        }}
                                         className="bg-white/50 dark:bg-black/20 rounded text-[10px] font-bold cursor-pointer disabled:cursor-not-allowed focus:outline-none shrink-0"
                                       >
                                         <option value="С">С</option>
                                         <option value="Д/Н">Д/Н</option>
+                                        <option value="до 19:00">до 19:00</option>
+                                        {docShift.customTime && !isCustom19 && (
+                                          <option value={docShift.customTime}>{docShift.customTime}</option>
+                                        )}
                                       </select>
                                       <span className="truncate" title={doc.name}>{doc.name} <span className="opacity-70">(доп)</span></span>
-                                      {docShift.customTime && (
+                                      {docShift.customTime && !isCustom19 && (
                                         <button
                                           type="button"
                                           disabled={isLocked}

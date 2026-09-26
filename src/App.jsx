@@ -89,10 +89,6 @@ export default function App() {
         newWishes[docId] = { ...(newWishes[docId] || {}), ...AUGUST_2026_WISHES[docId] };
       });
       updates.wishes = newWishes;
-
-      const newLocked = state.lockedMonths ? [...state.lockedMonths] : [];
-      if (!newLocked.includes('2026-08')) newLocked.push('2026-08');
-      updates.lockedMonths = newLocked;
     }
 
     if (state.settings.month !== '2026-08') {

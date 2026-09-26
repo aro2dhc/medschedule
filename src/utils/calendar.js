@@ -146,8 +146,10 @@ export function calculateAllStats(staff, schedule, days, settings, SHIFT_TYPES) 
     let carryOverHours = 0;
     let carryOverNightHours = 0;
     if (prevMonthLastDateStr) {
-      const prevShift = schedule[doc.id]?.[prevMonthLastDateStr]?.shift;
-      if (prevShift === 'С' || prevShift === 'Д/Н') {
+      const prevData = schedule[doc.id]?.[prevMonthLastDateStr];
+      const prevShift = prevData?.shift;
+      const prevEnds19 = prevData?.customTime && prevData.customTime.includes('19');
+      if ((prevShift === 'С' || prevShift === 'Д/Н') && !prevEnds19) {
         carryOverHours = 8;
         // Ночные часы с 00:00 до 06:00 = 6 часов (с 06:00 до 08:00 - дневные)
         carryOverNightHours = 6;
@@ -176,46 +178,62 @@ export function calculateAllStats(staff, schedule, days, settings, SHIFT_TYPES) 
         } else if (s.shift === 'ОЖ') {
           // ОЖ не дает рабочих часов
         } else {
-          const isLastDay = dIdx === days.length - 1;
-          const shiftCfg = SHIFT_TYPES[s.shift];
-          if (shiftCfg) {
-            if (isLastDay && (s.shift === 'С' || s.shift === 'Д/Н')) {
-              // В последний день месяца часы с 00:00 до 8:00 переносятся на следующий месяц
-              let dayPartHours = 0;
-              if (s.shift === 'С') {
-                dayPartHours = 16; // 8:00 - 24:00
-              } else if (s.shift === 'Д/Н') {
-                dayPartHours = isPre ? 9.3 : 8.3; // 14:42-24:00 или 15:42-24:00
-              }
-              hours += dayPartHours;
-              // В текущий месяц входят 2 ночных часа (22:00 - 24:00)
-              nightHours += 2;
+          const isDayStaff = doc && (doc.role === 'day' || doc.role === 'head');
+          const isCustom19 = s.customTime && s.customTime.includes('19');
 
-              if (holidayToday) {
-                holidayHours += dayPartHours;
-              }
-            } else {
-              const workedHours = isPre && shiftCfg.hoursPre !== undefined ? shiftCfg.hoursPre : shiftCfg.hours;
-              hours += workedHours;
-              if (shiftCfg.nightHours) nightHours += shiftCfg.nightHours;
+          if (isCustom19) {
+            // Если указано "до 19:00":
+            // - Дневной врач (day/head): работает 8:00 - 19:00 = 11.0 ч.
+            // - Дежурный врач (duty): работает 15:42 - 19:00 = 3.3 ч (или 14:42-19:00 = 4.3 ч в предпраздничный).
+            // Смена завершается в 19:00, до 22:00, поэтому ночных часов 0 и переноса на след. день нет.
+            const workedHours = isDayStaff ? 11.0 : (isPre ? 4.3 : 3.3);
+            hours += workedHours;
 
-              // Расчет праздничных часов:
-              // 1) Часы, отработанные в день начала смены
-              if (holidayToday) {
+            if (holidayToday) {
+              holidayHours += workedHours;
+            }
+          } else {
+            const isLastDay = dIdx === days.length - 1;
+            const shiftCfg = SHIFT_TYPES[s.shift];
+            if (shiftCfg) {
+              if (isLastDay && (s.shift === 'С' || s.shift === 'Д/Н')) {
+                // В последний день месяца часы с 00:00 до 8:00 переносятся на следующий месяц
+                let dayPartHours = 0;
                 if (s.shift === 'С') {
-                  holidayHours += 16; // 08:00-24:00
+                  dayPartHours = 16; // 8:00 - 24:00
                 } else if (s.shift === 'Д/Н') {
-                  holidayHours += isPre ? 9.3 : 8.3;
-                } else if (s.shift === 'Д') {
-                  holidayHours += isPre ? 6.7 : 7.7;
+                  dayPartHours = isPre ? 9.3 : 8.3; // 14:42-24:00 или 15:42-24:00
                 }
-              }
+                hours += dayPartHours;
+                // В текущий месяц входят 2 ночных часа (22:00 - 24:00)
+                nightHours += 2;
 
-              // 2) Хвост смены (00:00-08:00 = 8 ч), приходящийся на следующий день
-              if ((s.shift === 'С' || s.shift === 'Д/Н') && dIdx < days.length - 1) {
-                const nextDay = days[dIdx + 1];
-                if (isHoliday(nextDay.dateStr, settings.customHolidays)) {
-                  holidayHours += 8;
+                if (holidayToday) {
+                  holidayHours += dayPartHours;
+                }
+              } else {
+                const workedHours = isPre && shiftCfg.hoursPre !== undefined ? shiftCfg.hoursPre : shiftCfg.hours;
+                hours += workedHours;
+                if (shiftCfg.nightHours) nightHours += shiftCfg.nightHours;
+
+                // Расчет праздничных часов:
+                // 1) Часы, отработанные в день начала смены
+                if (holidayToday) {
+                  if (s.shift === 'С') {
+                    holidayHours += 16; // 08:00-24:00
+                  } else if (s.shift === 'Д/Н') {
+                    holidayHours += isPre ? 9.3 : 8.3;
+                  } else if (s.shift === 'Д') {
+                    holidayHours += isPre ? 6.7 : 7.7;
+                  }
+                }
+
+                // 2) Хвост смены (00:00-08:00 = 8 ч), приходящийся на следующий день
+                if ((s.shift === 'С' || s.shift === 'Д/Н') && dIdx < days.length - 1) {
+                  const nextDay = days[dIdx + 1];
+                  if (isHoliday(nextDay.dateStr, settings.customHolidays)) {
+                    holidayHours += 8;
+                  }
                 }
               }
             }

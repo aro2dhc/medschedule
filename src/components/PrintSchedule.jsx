@@ -19,23 +19,28 @@ export default function PrintSchedule() {
   // Конвертация смен в часы для вывода с учетом перехода через полночь
   const renderShiftTime = (docId, dIndex) => {
     const d = days[dIndex];
-    const currentShift = schedule[docId]?.[d.dateStr]?.shift;
+    const shiftData = schedule[docId]?.[d.dateStr];
+    const currentShift = shiftData?.shift;
     const isPre = isPreHoliday(d.dateStr, settings.customHolidays);
-    
+    const doc = staff.find(s => s.id === docId);
+    const isDayStaff = doc && (doc.role === 'day' || doc.role === 'head');
+
+    // Проверяем смену предыдущего дня на предмет переноса (00:00-8:00)
     let carryOver = false;
+    let prevData = null;
     if (dIndex > 0) {
-      const prevShift = schedule[docId]?.[days[dIndex - 1].dateStr]?.shift;
-      if (prevShift === 'С' || prevShift === 'Д/Н') {
-        carryOver = true;
-      }
+      prevData = schedule[docId]?.[days[dIndex - 1].dateStr];
     } else {
-      // dIndex === 0: Проверяем последний день предыдущего месяца!
+      // dIndex === 0: Проверяем последний день предыдущего месяца
       const prevDate = subDays(d.date, 1);
       const prevDateStr = format(prevDate, 'yyyy-MM-dd');
-      const prevShift = schedule[docId]?.[prevDateStr]?.shift;
-      if (prevShift === 'С' || prevShift === 'Д/Н') {
-        carryOver = true;
-      }
+      prevData = schedule[docId]?.[prevDateStr];
+    }
+    
+    // Перенос 00:00-8:00 происходит только если вчера было дежурство 'С' или 'Д/Н' и оно НЕ завершилось в 19:00
+    const prevEnds19 = prevData?.customTime && prevData.customTime.includes('19');
+    if (prevData && (prevData.shift === 'С' || prevData.shift === 'Д/Н') && !prevEnds19) {
+      carryOver = true;
     }
     
     let top = null;
@@ -45,7 +50,15 @@ export default function PrintSchedule() {
       top = '00:00-8:00';
     }
     
-    if (currentShift === 'Д') {
+    const isCustom19 = shiftData?.customTime && shiftData.customTime.includes('19');
+
+    if (isCustom19) {
+      if (isDayStaff) {
+        bottom = '8:00-19:00';
+      } else {
+        bottom = `${isPre ? '14:42' : '15:42'}-19:00`;
+      }
+    } else if (currentShift === 'Д') {
       bottom = `8:00-${isPre ? '14:42' : '15:42'}`;
     } else if (currentShift === 'Д/Н') {
       bottom = `${isPre ? '14:42' : '15:42'}-24:00`;

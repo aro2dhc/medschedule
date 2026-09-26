@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useStore } from '../store';
-import { getMonthDays, isDayOff, calculateAllStats } from '../utils/calendar';
+import { getMonthDays, isDayOff, isPreHoliday, calculateAllStats } from '../utils/calendar';
 import { SHIFT_TYPES } from '../utils/generator';
 import { exportDoctorScheduleToICS } from '../utils/icsExport';
 import { Calendar, Clock, Moon, Award, Download, Users, List, Grid } from 'lucide-react';
@@ -88,7 +88,12 @@ export default function MyScheduleTab() {
     }
   };
 
-  const getShiftTime = (shift) => {
+  const getShiftTime = (shift, shiftData, dateStr) => {
+    if (shiftData?.customTime && shiftData.customTime.includes('19')) {
+      const isDayStaff = activeDoc && (activeDoc.role === 'day' || activeDoc.role === 'head');
+      const isPre = dateStr ? isPreHoliday(dateStr, settings.customHolidays) : false;
+      return isDayStaff ? '08:00 – 19:00' : `${isPre ? '14:42' : '15:42'} – 19:00`;
+    }
     switch (shift) {
       case 'С': return '08:00 – 08:00 (следующего дня)';
       case 'Д/Н': return '15:42 – 08:00 (следующего дня)';
@@ -238,7 +243,7 @@ export default function MyScheduleTab() {
 
                       <div className="text-xs text-slate-500 dark:text-slate-400 flex items-center gap-1.5 flex-wrap">
                         <Clock size={13} className="shrink-0" />
-                        <span>{getShiftTime(item.shift)}</span>
+                        <span>{getShiftTime(item.shift, item.shiftData, item.dateStr)}</span>
                         {item.shiftData?.customTime && (
                           <span className="font-semibold text-amber-800 dark:text-amber-300 bg-amber-100 dark:bg-amber-950/60 px-1.5 py-0.5 rounded text-[11px] border border-amber-200 dark:border-amber-800">
                             {item.shiftData.customTime}
