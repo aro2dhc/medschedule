@@ -471,6 +471,16 @@ export const useStore = create(
           if (!newLocked.includes('2026-08')) {
             newLocked.push('2026-08');
           }
+        } else {
+          // Ensure August 2026 contains customTime for Gorbatenko if loaded previously
+          if (newSchedule['1']?.['2026-08-03'] && !newSchedule['1']['2026-08-03'].customTime) {
+            newSchedule['1']['2026-08-03'] = { ...newSchedule['1']['2026-08-03'], customTime: 'до 19.00' };
+            augustChanged = true;
+          }
+          if (newSchedule['1']?.['2026-08-18'] && !newSchedule['1']['2026-08-18'].customTime) {
+            newSchedule['1']['2026-08-18'] = { ...newSchedule['1']['2026-08-18'], customTime: 'до 19.00' };
+            augustChanged = true;
+          }
         }
 
         if (changed || scheduleChanged || augustChanged) {

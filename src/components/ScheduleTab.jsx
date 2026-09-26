@@ -275,15 +275,23 @@ export default function ScheduleTab() {
                                 0-8
                               </div>
                             )}
+                            {shiftData?.customTime && (
+                              <div 
+                                className="absolute bottom-0 inset-x-0 text-[7px] leading-tight font-semibold bg-amber-200/90 dark:bg-amber-900/90 text-amber-900 dark:text-amber-100 text-center truncate px-0.5 pointer-events-none z-1" 
+                                title={`Индивидуальное время: ${shiftData.customTime}`}
+                              >
+                                {shiftData.customTime}
+                              </div>
+                            )}
                             <select
                               value={val}
                               disabled={isLocked}
                               onChange={(e) => {
                                 if (isLocked) return;
                                 if (!e.target.value) setSchedule(doc.id, d.dateStr, null);
-                                else setSchedule(doc.id, d.dateStr, { shift: e.target.value, wardId: shiftData?.wardId || '1', isExtra: shiftData?.isExtra || false });
+                                else setSchedule(doc.id, d.dateStr, { shift: e.target.value, wardId: shiftData?.wardId || '1', isExtra: shiftData?.isExtra || false, customTime: shiftData?.customTime });
                               }}
-                              className={`w-full ${showCarryBadge ? 'pt-2 h-9' : 'h-8'} text-center bg-transparent appearance-none ${isLocked ? 'cursor-not-allowed' : 'cursor-pointer'} focus:outline-none font-bold
+                              className={`w-full ${showCarryBadge ? 'pt-2 h-9' : shiftData?.customTime ? 'pb-2 h-9' : 'h-8'} text-center bg-transparent appearance-none ${isLocked ? 'cursor-not-allowed' : 'cursor-pointer'} focus:outline-none font-bold
                                 ${conflict ? 'bg-red-500/20 text-red-700 dark:bg-red-900/60 dark:text-red-300 ring-2 ring-inset ring-red-500' : 
                                   `${val === 'Д' ? 'bg-green-100 dark:bg-green-900/40 text-green-800' : ''}
                                    ${val === 'Д/Н' ? 'bg-blue-100 dark:bg-blue-900/40 text-blue-800' : ''}

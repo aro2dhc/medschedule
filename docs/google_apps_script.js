@@ -99,11 +99,15 @@ function doGet(e) {
       
       if (docId && date) {
         if (!schedule[docId]) schedule[docId] = {};
-        schedule[docId][date] = {
+        const rowObj = {
           shift: String(schValues[i][2]),
           wardId: String(schValues[i][3]),
           isExtra: schValues[i][4] === true || schValues[i][4] === 'true'
         };
+        if (schValues[i][5]) {
+          rowObj.customTime = String(schValues[i][5]);
+        }
+        schedule[docId][date] = rowObj;
       }
     }
     
@@ -149,7 +153,7 @@ function doPost(e) {
        };
        
        let schData = readSheet(sheets["Schedule"]);
-       if (schData.length === 0) schData = [["docId", "date", "shift", "wardId", "isExtra"]];
+       if (schData.length === 0) schData = [["docId", "date", "shift", "wardId", "isExtra", "customTime"]];
        
        let wishData = readSheet(sheets["Wishes"]);
        if (wishData.length === 0) wishData = [["docId", "date", "wish"]];
@@ -183,14 +187,14 @@ function doPost(e) {
                if (!p.shiftData || !p.shiftData.shift) {
                  schData.splice(i, 1);
                } else {
-                 schData[i] = [p.doctorId, "'" + p.dateStr, p.shiftData.shift || '', p.shiftData.wardId || '1', !!p.shiftData.isExtra];
+                 schData[i] = [p.doctorId, "'" + p.dateStr, p.shiftData.shift || '', p.shiftData.wardId || '1', !!p.shiftData.isExtra, p.shiftData.customTime || ''];
                }
                found = true;
                break;
              }
            }
            if (!found && p.shiftData && p.shiftData.shift) {
-             schData.push([p.doctorId, "'" + p.dateStr, p.shiftData.shift || '', p.shiftData.wardId || '1', !!p.shiftData.isExtra]);
+             schData.push([p.doctorId, "'" + p.dateStr, p.shiftData.shift || '', p.shiftData.wardId || '1', !!p.shiftData.isExtra, p.shiftData.customTime || '']);
            }
            schChanged = true;
          }
@@ -214,7 +218,7 @@ function doPost(e) {
              for (let date in p.newSchedule[docId]) {
                let s = p.newSchedule[docId][date];
                if (s && s.shift && date.startsWith(p.monthStr)) {
-                 schData.push([docId, "'" + date, s.shift || '', s.wardId || '1', !!s.isExtra]);
+                 schData.push([docId, "'" + date, s.shift || '', s.wardId || '1', !!s.isExtra, s.customTime || '']);
                }
              }
            }

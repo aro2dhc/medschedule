@@ -15,7 +15,10 @@ export function exportScheduleToCSV(staff, schedule, month, customHolidays) {
     days.forEach(d => {
       const s = schedule[doc.id]?.[d.dateStr];
       let cell = s?.shift || '';
-      if (cell && s.wardId && !['О', 'Б', 'К', 'А', 'ОЖ'].includes(cell)) cell += ` (П${s.wardId})`;
+      if (cell && s.wardId && !['О', 'Б', 'К', 'А', 'ОЖ'].includes(cell)) {
+        cell += ` (П${s.wardId})`;
+        if (s.customTime) cell += ` [${s.customTime}]`;
+      }
       row.push(cell);
     });
     csvContent += row.join(';') + '\n';
@@ -54,8 +57,9 @@ export function exportWardsToCSV(staff, schedule, month, numWards) {
       staff.forEach(doc => {
         const s = schedule[doc.id]?.[d.dateStr];
         if (s && ['С', 'Д/Н'].includes(s.shift) && String(s.wardId) === String(i)) {
-          if (s.isExtra) extraDoc = doc.name;
-          else mainDoc = doc.name;
+          const docStr = s.customTime ? `${doc.name} (${s.customTime})` : doc.name;
+          if (s.isExtra) extraDoc = docStr;
+          else mainDoc = docStr;
         }
       });
       

@@ -236,9 +236,14 @@ export default function MyScheduleTab() {
                         )}
                       </div>
 
-                      <div className="text-xs text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
+                      <div className="text-xs text-slate-500 dark:text-slate-400 flex items-center gap-1.5 flex-wrap">
                         <Clock size={13} className="shrink-0" />
                         <span>{getShiftTime(item.shift)}</span>
+                        {item.shiftData?.customTime && (
+                          <span className="font-semibold text-amber-800 dark:text-amber-300 bg-amber-100 dark:bg-amber-950/60 px-1.5 py-0.5 rounded text-[11px] border border-amber-200 dark:border-amber-800">
+                            {item.shiftData.customTime}
+                          </span>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -315,7 +320,7 @@ export default function MyScheduleTab() {
                     </div>
 
                     {shift && (
-                      <div className="mt-1">
+                      <div className="mt-1 flex items-center gap-1 flex-wrap">
                         <span className={`inline-block px-1.5 py-0.5 rounded text-[11px] font-bold ${
                           shift === 'С'
                             ? 'bg-orange-600 text-white'
@@ -327,6 +332,11 @@ export default function MyScheduleTab() {
                         }`}>
                           {shift}
                         </span>
+                        {shiftData?.customTime && (
+                          <span className="text-[9px] font-semibold text-amber-800 dark:text-amber-300 bg-amber-100 dark:bg-amber-950/60 px-1 rounded truncate max-w-full" title={`Время: ${shiftData.customTime}`}>
+                            {shiftData.customTime}
+                          </span>
+                        )}
                       </div>
                     )}
                   </div>

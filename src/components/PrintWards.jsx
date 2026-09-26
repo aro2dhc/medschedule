@@ -63,7 +63,9 @@ export default function PrintWards() {
                   const names = docsInWard.map(s => {
                     let name = s.name.split(' ')[0];
                     const sData = schedule[s.id]?.[d.dateStr];
-                    if (sData.shift === 'С' && !isOff) {
+                    if (sData.customTime) {
+                      name += ' ' + sData.customTime;
+                    } else if (sData.shift === 'С' && !isOff) {
                       name += ' 8-8';
                     }
                     return name;

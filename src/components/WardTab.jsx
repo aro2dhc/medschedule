@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { useStore } from '../store';
 import { getMonthDays, isDayOff, calculateAllStats } from '../utils/calendar';
 import { SHIFT_TYPES } from '../utils/generator';
@@ -6,6 +7,17 @@ import PrintWards from './PrintWards';
 import WardFooter from './WardFooter';
 import ScheduleValidator from './ScheduleValidator';
 import { format } from 'date-fns';
+import { Clock } from 'lucide-react';
+
+const CUSTOM_TIME_PRESETS = [
+  'до 19.00',
+  'до 20.00',
+  'до 14.00',
+  'до 16.00',
+  'с 16.30',
+  'с 17.00',
+  'с 20.00'
+];
 
 export default function WardTab() {
   const { settings, schedule, setSchedule } = useStore();
@@ -17,6 +29,56 @@ export default function WardTab() {
   const lockedMonths = useStore(state => state.lockedMonths || []);
   const toggleLockMonth = useStore(state => state.toggleLockMonth);
   const isLocked = lockedMonths.includes(settings.month);
+
+  const [customTimeModal, setCustomTimeModal] = useState({
+    isOpen: false,
+    docId: null,
+    dateStr: null,
+    docName: '',
+    currentTime: '',
+    value: ''
+  });
+
+  const openCustomTimeModal = (doc, dateStr) => {
+    if (isLocked) return;
+    const currentShift = schedule[doc.id]?.[dateStr];
+    const currentTime = currentShift?.customTime || '';
+    setCustomTimeModal({
+      isOpen: true,
+      docId: doc.id,
+      dateStr,
+      docName: doc.name,
+      currentTime,
+      value: currentTime
+    });
+  };
+
+  const handleSaveCustomTime = () => {
+    if (!customTimeModal.docId || !customTimeModal.dateStr) return;
+    const currentShift = schedule[customTimeModal.docId]?.[customTimeModal.dateStr];
+    if (currentShift) {
+      const trimmed = customTimeModal.value.trim();
+      const updated = { ...currentShift };
+      if (trimmed) {
+        updated.customTime = trimmed;
+      } else {
+        delete updated.customTime;
+      }
+      setSchedule(customTimeModal.docId, customTimeModal.dateStr, updated);
+    }
+    setCustomTimeModal({ isOpen: false, docId: null, dateStr: null, docName: '', currentTime: '', value: '' });
+  };
+
+  const handleClearCustomTime = () => {
+    if (!customTimeModal.docId || !customTimeModal.dateStr) return;
+    const currentShift = schedule[customTimeModal.docId]?.[customTimeModal.dateStr];
+    if (currentShift) {
+      const updated = { ...currentShift };
+      delete updated.customTime;
+      setSchedule(customTimeModal.docId, customTimeModal.dateStr, updated);
+    }
+    setCustomTimeModal({ isOpen: false, docId: null, dateStr: null, docName: '', currentTime: '', value: '' });
+  };
 
   const today = new Date();
   const todayMonthStr = format(today, 'yyyy-MM');
@@ -298,46 +360,102 @@ export default function WardTab() {
                           <td key={w.id} className="p-2 border-r border-slate-100 dark:border-slate-800 align-top">
                             <div className="flex flex-col gap-1.5">
                               {/* Основные дежуранты */}
-                              {docs.map(doc => (
-                                <div key={doc.id} className="flex items-center justify-between bg-blue-100 dark:bg-blue-900/40 text-blue-800 dark:text-blue-300 px-1 py-1 rounded text-xs font-medium">
-                                  <div className="flex items-center gap-1 overflow-hidden">
-                                    <select
-                                      value={schedule[doc.id][d.dateStr].shift}
-                                      disabled={isLocked}
-                                      onChange={(e) => setSchedule(doc.id, d.dateStr, { ...schedule[doc.id][d.dateStr], shift: e.target.value, wardId: schedule[doc.id][d.dateStr]?.wardId || w.id })}
-                                      className="bg-white/50 dark:bg-black/20 rounded text-[10px] font-bold cursor-pointer disabled:cursor-not-allowed focus:outline-none"
-                                    >
-                                      <option value="С">С</option>
-                                      <option value="Д/Н">Д/Н</option>
-                                    </select>
-                                    <span className="truncate" title={doc.name}>{doc.name}</span>
+                              {docs.map(doc => {
+                                const docShift = schedule[doc.id][d.dateStr];
+                                return (
+                                  <div key={doc.id} className="flex items-center justify-between bg-blue-100 dark:bg-blue-900/40 text-blue-800 dark:text-blue-300 px-1 py-1 rounded text-xs font-medium gap-1">
+                                    <div className="flex items-center gap-1 overflow-hidden min-w-0 flex-1">
+                                      <select
+                                        value={docShift.shift}
+                                        disabled={isLocked}
+                                        onChange={(e) => setSchedule(doc.id, d.dateStr, { ...docShift, shift: e.target.value, wardId: docShift?.wardId || w.id })}
+                                        className="bg-white/50 dark:bg-black/20 rounded text-[10px] font-bold cursor-pointer disabled:cursor-not-allowed focus:outline-none shrink-0"
+                                      >
+                                        <option value="С">С</option>
+                                        <option value="Д/Н">Д/Н</option>
+                                      </select>
+                                      <span className="truncate" title={doc.name}>{doc.name}</span>
+                                      {docShift.customTime && (
+                                        <button
+                                          type="button"
+                                          disabled={isLocked}
+                                          onClick={() => openCustomTimeModal(doc, d.dateStr)}
+                                          title={`Индивидуальное время: ${docShift.customTime}. Нажмите для изменения`}
+                                          className="shrink-0 px-1 py-0.2 text-[9px] font-bold rounded bg-amber-200/90 dark:bg-amber-800/80 text-amber-900 dark:text-amber-100 hover:bg-amber-300 dark:hover:bg-amber-700 transition-colors"
+                                        >
+                                          {docShift.customTime}
+                                        </button>
+                                      )}
+                                    </div>
+                                    <div className="flex items-center gap-0.5 shrink-0">
+                                      {!isLocked && (
+                                        <button
+                                          type="button"
+                                          onClick={() => openCustomTimeModal(doc, d.dateStr)}
+                                          className={`p-0.5 rounded hover:bg-blue-200 dark:hover:bg-blue-800/60 transition-colors ${
+                                            docShift.customTime ? 'text-amber-700 dark:text-amber-300 font-bold' : 'text-blue-400 hover:text-blue-600 dark:hover:text-blue-200'
+                                          }`}
+                                          title={docShift.customTime ? `Время: ${docShift.customTime} (изменить)` : "Указать время дежурства (напр. до 19.00)"}
+                                        >
+                                          <Clock size={12} />
+                                        </button>
+                                      )}
+                                      {!isLocked && (
+                                        <button onClick={() => removeDoc(doc.id, d.dateStr)} className="text-blue-400 hover:text-blue-600 dark:hover:text-blue-200 text-sm px-0.5 leading-none">×</button>
+                                      )}
+                                    </div>
                                   </div>
-                                  {!isLocked && (
-                                    <button onClick={() => removeDoc(doc.id, d.dateStr)} className="ml-1 text-blue-400 hover:text-blue-600 dark:hover:text-blue-200">×</button>
-                                  )}
-                                </div>
-                              ))}
+                                );
+                              })}
                               
                               {/* Доп врачи */}
-                              {extras.map(doc => (
-                                <div key={doc.id} className="flex items-center justify-between bg-purple-100 dark:bg-purple-900/40 text-purple-800 dark:text-purple-300 px-1 py-1 rounded text-xs font-medium">
-                                  <div className="flex items-center gap-1 overflow-hidden">
-                                    <select
-                                      value={schedule[doc.id][d.dateStr].shift}
-                                      disabled={isLocked}
-                                      onChange={(e) => setSchedule(doc.id, d.dateStr, { ...schedule[doc.id][d.dateStr], shift: e.target.value, wardId: schedule[doc.id][d.dateStr]?.wardId || w.id })}
-                                      className="bg-white/50 dark:bg-black/20 rounded text-[10px] font-bold cursor-pointer disabled:cursor-not-allowed focus:outline-none"
-                                    >
-                                      <option value="С">С</option>
-                                      <option value="Д/Н">Д/Н</option>
-                                    </select>
-                                    <span className="truncate" title={doc.name}>{doc.name} <span className="opacity-70">(доп)</span></span>
+                              {extras.map(doc => {
+                                const docShift = schedule[doc.id][d.dateStr];
+                                return (
+                                  <div key={doc.id} className="flex items-center justify-between bg-purple-100 dark:bg-purple-900/40 text-purple-800 dark:text-purple-300 px-1 py-1 rounded text-xs font-medium gap-1">
+                                    <div className="flex items-center gap-1 overflow-hidden min-w-0 flex-1">
+                                      <select
+                                        value={docShift.shift}
+                                        disabled={isLocked}
+                                        onChange={(e) => setSchedule(doc.id, d.dateStr, { ...docShift, shift: e.target.value, wardId: docShift?.wardId || w.id })}
+                                        className="bg-white/50 dark:bg-black/20 rounded text-[10px] font-bold cursor-pointer disabled:cursor-not-allowed focus:outline-none shrink-0"
+                                      >
+                                        <option value="С">С</option>
+                                        <option value="Д/Н">Д/Н</option>
+                                      </select>
+                                      <span className="truncate" title={doc.name}>{doc.name} <span className="opacity-70">(доп)</span></span>
+                                      {docShift.customTime && (
+                                        <button
+                                          type="button"
+                                          disabled={isLocked}
+                                          onClick={() => openCustomTimeModal(doc, d.dateStr)}
+                                          title={`Индивидуальное время: ${docShift.customTime}. Нажмите для изменения`}
+                                          className="shrink-0 px-1 py-0.2 text-[9px] font-bold rounded bg-amber-200/90 dark:bg-amber-800/80 text-amber-900 dark:text-amber-100 hover:bg-amber-300 dark:hover:bg-amber-700 transition-colors"
+                                        >
+                                          {docShift.customTime}
+                                        </button>
+                                      )}
+                                    </div>
+                                    <div className="flex items-center gap-0.5 shrink-0">
+                                      {!isLocked && (
+                                        <button
+                                          type="button"
+                                          onClick={() => openCustomTimeModal(doc, d.dateStr)}
+                                          className={`p-0.5 rounded hover:bg-purple-200 dark:hover:bg-purple-800/60 transition-colors ${
+                                            docShift.customTime ? 'text-amber-700 dark:text-amber-300 font-bold' : 'text-purple-400 hover:text-purple-600 dark:hover:text-purple-200'
+                                          }`}
+                                          title={docShift.customTime ? `Время: ${docShift.customTime} (изменить)` : "Указать время дежурства (напр. до 19.00)"}
+                                        >
+                                          <Clock size={12} />
+                                        </button>
+                                      )}
+                                      {!isLocked && (
+                                        <button onClick={() => removeDoc(doc.id, d.dateStr)} className="text-purple-400 hover:text-purple-600 dark:hover:text-purple-200 text-sm px-0.5 leading-none">×</button>
+                                      )}
+                                    </div>
                                   </div>
-                                  {!isLocked && (
-                                    <button onClick={() => removeDoc(doc.id, d.dateStr)} className="ml-1 text-purple-400 hover:text-purple-600 dark:hover:text-purple-200">×</button>
-                                  )}
-                                </div>
-                              ))}
+                                );
+                              })}
 
                               {/* Выпадающий список добавления */}
                               {!isLocked && (
@@ -423,6 +541,111 @@ export default function WardTab() {
     </div>
       <WardFooter isPrint={false} />
       <PrintWards />
+
+      {/* Modal for setting custom duty shift time */}
+      {customTimeModal.isOpen && (
+        <div 
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs animate-in fade-in"
+          onClick={() => setCustomTimeModal(prev => ({ ...prev, isOpen: false }))}
+        >
+          <div 
+            className="bg-white dark:bg-slate-800 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-700 max-w-sm w-full p-5 space-y-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-start justify-between">
+              <div>
+                <h3 className="font-bold text-base text-slate-900 dark:text-white flex items-center gap-2">
+                  <Clock size={18} className="text-blue-600 dark:text-blue-400" />
+                  Время дежурства
+                </h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                  {customTimeModal.docName} • {customTimeModal.dateStr}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setCustomTimeModal(prev => ({ ...prev, isOpen: false }))}
+                className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-xl font-bold p-1 leading-none"
+              >
+                ×
+              </button>
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                Быстрый выбор:
+              </label>
+              <div className="flex flex-wrap gap-1.5">
+                {CUSTOM_TIME_PRESETS.map((preset) => (
+                  <button
+                    key={preset}
+                    type="button"
+                    onClick={() => setCustomTimeModal(prev => ({ ...prev, value: preset }))}
+                    className={`px-2.5 py-1 text-xs rounded-lg font-medium transition-all ${
+                      customTimeModal.value === preset
+                        ? 'bg-blue-600 text-white shadow-xs'
+                        : 'bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200'
+                    }`}
+                  >
+                    {preset}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                Точное время или комментарий:
+              </label>
+              <input
+                type="text"
+                autoFocus
+                value={customTimeModal.value}
+                onChange={(e) => setCustomTimeModal(prev => ({ ...prev, value: e.target.value }))}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') handleSaveCustomTime();
+                  if (e.key === 'Escape') setCustomTimeModal(prev => ({ ...prev, isOpen: false }));
+                }}
+                placeholder="например: до 19.00"
+                className="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+              <p className="text-[11px] text-slate-400 dark:text-slate-500 leading-snug">
+                Отображается в графике дежурств и в официальном бланке для печати (например: <i>Тищенко, Горбатенко до 19.00</i>).
+              </p>
+            </div>
+
+            <div className="flex items-center justify-between pt-2 border-t border-slate-100 dark:border-slate-700">
+              <div>
+                {customTimeModal.currentTime && (
+                  <button
+                    type="button"
+                    onClick={handleClearCustomTime}
+                    className="text-xs text-red-500 hover:text-red-700 dark:hover:text-red-400 font-medium"
+                  >
+                    Сбросить
+                  </button>
+                )}
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setCustomTimeModal(prev => ({ ...prev, isOpen: false }))}
+                  className="px-3 py-1.5 text-xs font-medium rounded-lg text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
+                >
+                  Отмена
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSaveCustomTime}
+                  className="px-4 py-1.5 text-xs font-semibold rounded-lg bg-blue-600 hover:bg-blue-700 text-white shadow-xs transition-colors"
+                >
+                  Сохранить
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }

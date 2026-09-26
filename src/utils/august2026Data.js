@@ -81,7 +81,7 @@ export const AUGUST_2026_SCHEDULE = {
     const res = {};
     WORKDAYS_AUG_2026.forEach(d => {
       if (d === '2026-08-03' || d === '2026-08-18') {
-        res[d] = { shift: 'Д/Н', wardId: '2', isExtra: true };
+        res[d] = { shift: 'Д/Н', wardId: '2', isExtra: true, customTime: 'до 19.00' };
       } else {
         res[d] = { shift: 'Д', wardId: '1', isExtra: false };
       }
