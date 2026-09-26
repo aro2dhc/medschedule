@@ -90,7 +90,7 @@ export default function MyScheduleTab() {
 
   const getShiftTime = (shift, shiftData, dateStr) => {
     if (shiftData?.customTime && shiftData.customTime.includes('19')) {
-      const isDayStaff = activeDoc && (activeDoc.role === 'day' || activeDoc.role === 'head');
+      const isDayStaff = selectedDoc && (selectedDoc.role === 'day' || selectedDoc.role === 'head');
       const isPre = dateStr ? isPreHoliday(dateStr, settings.customHolidays) : false;
       return isDayStaff ? '08:00 – 19:00' : `${isPre ? '14:42' : '15:42'} – 19:00`;
     }
