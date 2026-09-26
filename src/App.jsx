@@ -33,13 +33,13 @@ function CloudIndicator() {
     window.dispatchEvent(new CustomEvent('trigger-cloud-refresh'));
   };
 
-  const timeStr = lastSyncTime ? new Date(lastSyncTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
+  const timeStr = lastSyncTime ? new Date(lastSyncTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : '';
 
   if (syncState === 'saving') {
     return (
       <div className="flex items-center gap-1.5 text-xs text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/30 px-2.5 py-1 rounded-full font-medium shadow-sm">
         <CloudUpload size={14} className="animate-pulse" />
-        <span>Сохранение...</span>
+        <span className="text-[11px] sm:text-xs">Сохранение...</span>
       </div>
     );
   }
@@ -47,7 +47,7 @@ function CloudIndicator() {
     return (
       <div className="flex items-center gap-1.5 text-xs text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/30 px-2.5 py-1 rounded-full font-medium shadow-sm">
         <RefreshCw size={13} className="animate-spin text-blue-500" />
-        <span>Обновление...</span>
+        <span className="text-[11px] sm:text-xs">Обновление...</span>
       </div>
     );
   }
@@ -56,21 +56,21 @@ function CloudIndicator() {
       <button 
         onClick={handleRefresh}
         title="Ошибка подключения. Нажмите для повтора"
-        className="flex items-center gap-1.5 text-xs text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/30 hover:bg-red-100 dark:hover:bg-red-900/50 px-2.5 py-1 rounded-full transition-colors font-medium border border-red-200 dark:border-red-800"
+        className="flex items-center gap-1.5 text-xs text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/30 hover:bg-red-100 dark:hover:bg-red-900/50 px-2.5 py-1 rounded-full transition-colors font-medium border border-red-200 dark:border-red-800 cursor-pointer"
       >
         <CloudOff size={14} />
-        <span>Сбой сети (повторить)</span>
+        <span className="text-[11px] sm:text-xs">Сбой сети (повторить)</span>
       </button>
     );
   }
   return (
-    <div className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800/90 border border-slate-200/70 dark:border-slate-700 px-2.5 py-1 rounded-full">
-      <Cloud size={14} className="text-emerald-500" />
-      <span className="hidden sm:inline font-mono">{timeStr ? `${timeStr}` : 'Облако'}</span>
+    <div className="flex items-center gap-1 text-xs text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-800/90 border border-slate-200/80 dark:border-slate-700 px-2 py-1 rounded-full">
+      <Cloud size={14} className="text-emerald-500 shrink-0" />
+      <span className="font-mono text-[11px] select-none">{timeStr || 'Онлайн'}</span>
       <button 
         onClick={handleRefresh} 
         title="Обновить расписание прямо сейчас" 
-        className="p-0.5 hover:text-blue-600 dark:hover:text-blue-400 transition-colors ml-0.5"
+        className="p-1 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-slate-200 dark:hover:bg-slate-700 rounded transition-colors ml-0.5 cursor-pointer"
       >
         <RefreshCw size={12} />
       </button>
@@ -132,10 +132,6 @@ export default function App() {
         newWishes[docId] = { ...(newWishes[docId] || {}), ...AUGUST_2026_WISHES[docId] };
       });
       updates.wishes = newWishes;
-    }
-
-    if (!state.hasAugust2026Data && state.settings.month !== '2026-08') {
-      updates.settings = { ...state.settings, month: '2026-08' };
     }
 
     if (Object.keys(updates).length > 0) {

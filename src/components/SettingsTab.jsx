@@ -77,13 +77,14 @@ export default function SettingsTab() {
         }
       });
 
+      const { month: _m, ...sharedSettings } = settings;
       const actions = [
-        { type: 'UPDATE_SETTINGS', payload: { newSettings: settings } },
+        { type: 'UPDATE_SETTINGS', payload: { newSettings: sharedSettings } },
         ...staffActions,
         ...wishActions,
         ...scheduleActions
       ];
-      const activeUrl = settings.googleScriptUrl || DEFAULT_GOOGLE_SCRIPT_URL;
+      const activeUrl = DEFAULT_GOOGLE_SCRIPT_URL || settings.googleScriptUrl;
       if (!activeUrl) return alert('URL скрипта не задан!');
       const res = await fetch(activeUrl, {
         method: 'POST',
@@ -100,7 +101,7 @@ export default function SettingsTab() {
   };
 
   const syncFromCloud = async () => {
-    const activeUrl = settings.googleScriptUrl || DEFAULT_GOOGLE_SCRIPT_URL;
+    const activeUrl = DEFAULT_GOOGLE_SCRIPT_URL || settings.googleScriptUrl;
     if (!activeUrl) return alert('URL скрипта не задан!');
     setSyncStatus('Загрузка...');
     try {

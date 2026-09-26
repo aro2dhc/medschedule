@@ -33,7 +33,7 @@ const INITIAL_STAFF = [
 
 export const useStore = create(
   persist(
-    (set, get) => ({
+    (set, _get) => ({
       settings: {
         month: format(new Date(), 'yyyy-MM'),
         dailyNorm: 7.7,
@@ -77,10 +77,13 @@ export const useStore = create(
             settings: { ...state.settings, ...newSettings },
             lastLocalEditTime: Date.now()
           };
-          const newAction = { type: 'UPDATE_SETTINGS', payload: { newSettings } };
-          const newQueue = [...(state.actionQueue || []), newAction];
-
-          updates.actionQueue = newQueue;
+          
+          // Отделяем month (персональный выбор каждого врача на его экране) от глобальных настроек отделения
+          const { month: _month, ...sharedSettings } = newSettings;
+          if (Object.keys(sharedSettings).length > 0) {
+            const newAction = { type: 'UPDATE_SETTINGS', payload: { newSettings: sharedSettings } };
+            updates.actionQueue = [...(state.actionQueue || []), newAction];
+          }
           
           // Если мы переключили месяц
           if (newSettings.month && newSettings.month !== state.settings.month) {
@@ -312,7 +315,9 @@ export const useStore = create(
         if (data.settings) {
           const localMonth = newState.settings.month;
           const currentGoogleScriptUrl = newState.settings.googleScriptUrl || DEFAULT_GOOGLE_SCRIPT_URL;
-          newState.settings = { ...newState.settings, ...data.settings };
+          // Игнорируем month из облака, чтобы у каждого врача сохранялся его персонально выбранный месяц
+          const { month: _remoteMonth, ...sharedSettings } = data.settings;
+          newState.settings = { ...newState.settings, ...sharedSettings };
           // Preserve local month so it doesn't jump back during sync
           newState.settings.month = localMonth;
           // Preserve valid script URL if remote payload had empty or missing URL
@@ -352,11 +357,22 @@ export const useStore = create(
           }
         }
 
-        // Safety checks for active local modifications (within last 10 seconds)
-        const isRecentlyEdited = Date.now() - (newState.lastLocalEditTime || 0) < 10000;
-        const hasPendingActions = Boolean(newState.actionQueue && newState.actionQueue.length > 0);
+        // Гранулярная защита ячеек: собираем ключи, находящиеся в локальной очереди отправки
+        const pendingWishKeys = new Set();
+        (newState.actionQueue || []).forEach(act => {
+          if (act.type === 'SET_WISH' && act.payload) {
+            pendingWishKeys.add(`${act.payload.doctorId}_${act.payload.dateStr}`);
+          }
+        });
 
-        // 3. Wishes with date key normalization
+        const pendingScheduleKeys = new Set();
+        (newState.actionQueue || []).forEach(act => {
+          if ((act.type === 'SET_SHIFT' || act.type === 'CLEAR_DAY') && act.payload) {
+            pendingScheduleKeys.add(`${act.payload.doctorId}_${act.payload.dateStr}`);
+          }
+        });
+
+        // 3. Wishes with date key normalization & fine-grained cell protection
         let cloudWishesCount = 0;
         const normalizedWishes = {};
         if (data.wishes) {
@@ -382,30 +398,37 @@ export const useStore = create(
           }
         }
 
-        if ((!isRecentlyEdited && !hasPendingActions) || options.force) {
-          if (!newState.wishes) newState.wishes = {};
-          
-          // Only clear local wishes if cloud returned actual wishes or on force
-          if (cloudWishesCount > 0 || options.force) {
-            for (let docId in newState.wishes) {
-              for (let date in newState.wishes[docId]) {
-                if (date.startsWith(reqMonth)) {
-                  delete newState.wishes[docId][date];
+        if (!newState.wishes) newState.wishes = {};
+
+        // Если в облаке есть данные за этот месяц (или options.force), производим умный мерж:
+        if (cloudWishesCount > 0 || options.force) {
+          // Удаляем локальные пожелания за этот месяц ТОЛЬКО если они не находятся в очереди на отправку и отсутствуют в облаке
+          for (let docId in newState.wishes) {
+            for (let date in newState.wishes[docId]) {
+              if (date.startsWith(reqMonth)) {
+                const key = `${docId}_${date}`;
+                if (!pendingWishKeys.has(key)) {
+                  if (!normalizedWishes[docId] || !normalizedWishes[docId][date]) {
+                    delete newState.wishes[docId][date];
+                  }
                 }
               }
             }
           }
 
-          // Apply normalized cloud wishes
+          // Применяем облачные пожелания, никогда не затирая ячейки, которые пользователь редактирует прямо сейчас
           for (let docId in normalizedWishes) {
             if (!newState.wishes[docId]) newState.wishes[docId] = {};
             for (let date in normalizedWishes[docId]) {
-              newState.wishes[docId][date] = normalizedWishes[docId][date];
+              const key = `${docId}_${date}`;
+              if (!pendingWishKeys.has(key)) {
+                newState.wishes[docId][date] = normalizedWishes[docId][date];
+              }
             }
           }
         }
 
-        // 4. Schedule with date key normalization
+        // 4. Schedule with date key normalization & fine-grained cell protection
         let cloudScheduleCount = 0;
         const normalizedSchedule = {};
         if (data.schedule) {
@@ -431,23 +454,30 @@ export const useStore = create(
           }
         }
 
-        if ((!isRecentlyEdited && !hasPendingActions) || options.force) {
-          if (cloudScheduleCount > 0 || options.force) {
-            if (!newState.schedule) newState.schedule = {};
-            
-            // Clear local schedule for this month so deletions/moves in cloud are properly reflected
-            for (let docId in newState.schedule) {
-              for (let date in newState.schedule[docId]) {
-                if (date.startsWith(reqMonth)) {
-                  delete newState.schedule[docId][date];
+        if (!newState.schedule) newState.schedule = {};
+
+        // Если в облаке есть смены за этот месяц (или options.force), производим умный мерж:
+        if (cloudScheduleCount > 0 || options.force) {
+          // Удаляем локальные смены за этот месяц ТОЛЬКО если они не в очереди на отправку и отсутствуют в облаке
+          for (let docId in newState.schedule) {
+            for (let date in newState.schedule[docId]) {
+              if (date.startsWith(reqMonth)) {
+                const key = `${docId}_${date}`;
+                if (!pendingScheduleKeys.has(key)) {
+                  if (!normalizedSchedule[docId] || !normalizedSchedule[docId][date]) {
+                    delete newState.schedule[docId][date];
+                  }
                 }
               }
             }
+          }
 
-            // Apply normalized cloud schedule
-            for (let docId in normalizedSchedule) {
-              if (!newState.schedule[docId]) newState.schedule[docId] = {};
-              for (let date in normalizedSchedule[docId]) {
+          // Применяем облачные смены, никогда не затирая ячейки из локальной очереди
+          for (let docId in normalizedSchedule) {
+            if (!newState.schedule[docId]) newState.schedule[docId] = {};
+            for (let date in normalizedSchedule[docId]) {
+              const key = `${docId}_${date}`;
+              if (!pendingScheduleKeys.has(key)) {
                 newState.schedule[docId][date] = normalizedSchedule[docId][date];
               }
             }
@@ -506,6 +536,11 @@ export const useStore = create(
     }),
     {
       name: 'med-schedule-storage',
+      partialize: (state) => {
+        // Исключаем временные состояния очереди и синхронизации из localStorage
+        const { actionQueue: _q, syncState: _s, lastLocalEditTime: _t, ...rest } = state;
+        return rest;
+      },
       onRehydrateStorage: () => (state) => {
         if (!state) return;
         let changed = false;
@@ -592,19 +627,17 @@ export const useStore = create(
           updates.hasAugust2026Data = true;
           updates.wishes = newWishes;
           updates.lockedMonths = newLocked;
-          // Переключаем активный месяц на Август 2026
-          updates.settings = { ...(updates.settings || state.settings), month: '2026-08' };
         }
 
-        // Автоматически подключаем прод-базу данных:
-        // Если ссылка пустая, либо если в браузере осталась старая тестовая ссылка
-        const OLD_DEV_URL = 'https://script.google.com/macros/s/AKfycbyzbj9QSg2sSs3rw3Hhs0VmyCrRkcCnBn1XlL5nIk05UXM8o_qNYr5cEC8hZuEWEsbt_A/exec';
+        // Автоматически подключаем общую прод-базу данных отделения для всех клиентов:
         if (DEFAULT_GOOGLE_SCRIPT_URL) {
-          const currentUrl = state.settings?.googleScriptUrl;
-          if (!currentUrl || currentUrl.trim() === '' || currentUrl === OLD_DEV_URL) {
-            updates.settings = { ...(updates.settings || state.settings), googleScriptUrl: DEFAULT_GOOGLE_SCRIPT_URL };
-          }
+          updates.settings = { ...(updates.settings || state.settings), googleScriptUrl: DEFAULT_GOOGLE_SCRIPT_URL };
         }
+
+        // Очищаем локальные очереди действий и состояния ошибок при перезапуске
+        updates.actionQueue = [];
+        updates.syncState = 'idle';
+        updates.lastLocalEditTime = 0;
 
         if (Object.keys(updates).length > 0) {
           useStore.setState(updates);
