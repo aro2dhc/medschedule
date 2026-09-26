@@ -105,7 +105,7 @@ export default function SettingsTab() {
       const data = await res.json();
       if (data && (data.staff || data.staffByMonth || data.schedule)) {
         if (data.staffByMonth || data.schedule) {
-          useStore.getState().mergeCloudData(data, settings.month);
+          useStore.getState().mergeCloudData(data, settings.month, { force: true });
         } else {
           importData(data);
         }

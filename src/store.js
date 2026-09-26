@@ -47,7 +47,8 @@ export const useStore = create(
         signPEO: 'И.А.Киндяк',
       },
       actionQueue: [],
-        syncState: 'idle',
+      syncState: 'idle',
+      lastLocalEditTime: 0,
       staffByMonth: { 
         [format(new Date(), 'yyyy-MM')]: INITIAL_STAFF,
         '2026-08': AUGUST_2026_STAFF 
@@ -71,7 +72,10 @@ export const useStore = create(
         }),
       updateSettings: (newSettings) =>
         set((state) => {
-          let updates = { settings: { ...state.settings, ...newSettings } };
+          let updates = { 
+            settings: { ...state.settings, ...newSettings },
+            lastLocalEditTime: Date.now()
+          };
           const newAction = { type: 'UPDATE_SETTINGS', payload: { newSettings } };
           const newQueue = [...(state.actionQueue || []), newAction];
 
@@ -88,7 +92,15 @@ export const useStore = create(
                   '2026-08': AUGUST_2026_STAFF
                 };
               }
-              const hasAugSched = Boolean(state.schedule?.['6']?.['2026-08-01'] || state.schedule?.['10']?.['2026-08-02']);
+              let augShiftsCount = 0;
+              if (state.schedule) {
+                for (const dId in state.schedule) {
+                  for (const date in state.schedule[dId]) {
+                    if (date.startsWith('2026-08')) augShiftsCount++;
+                  }
+                }
+              }
+              const hasAugSched = augShiftsCount > 10;
               if (!hasAugSched) {
                 const newSched = { ...(state.schedule || {}) };
                 Object.keys(AUGUST_2026_SCHEDULE).forEach(docId => {
@@ -147,7 +159,9 @@ export const useStore = create(
               ...state.staffByMonth,
               [month]: [...currentStaff, { ...doctor, id: crypto.randomUUID() }]
             },
-            actionQueue: newQueue
+            actionQueue: newQueue,
+            lastLocalEditTime: Date.now(),
+            syncState: 'saving'
           };
         }),
 
@@ -163,7 +177,9 @@ export const useStore = create(
               ...state.staffByMonth,
               [month]: currentStaff.map((s) => (s.id === id ? { ...s, ...data } : s))
             },
-            actionQueue: newQueue
+            actionQueue: newQueue,
+            lastLocalEditTime: Date.now(),
+            syncState: 'saving'
           };
         }),
 
@@ -179,7 +195,9 @@ export const useStore = create(
               ...state.staffByMonth,
               [month]: currentStaff.filter((s) => s.id !== id)
             },
-            actionQueue: newQueue
+            actionQueue: newQueue,
+            lastLocalEditTime: Date.now(),
+            syncState: 'saving'
           };
         }),
 
@@ -194,7 +212,12 @@ export const useStore = create(
           } else {
             docWishes[dateStr] = wishType;
           }
-          return { wishes: { ...state.wishes, [doctorId]: docWishes }, actionQueue: newQueue };
+          return { 
+            wishes: { ...state.wishes, [doctorId]: docWishes }, 
+            actionQueue: newQueue,
+            lastLocalEditTime: Date.now(),
+            syncState: 'saving'
+          };
         }),
 
       setReplacement: (absentDocId, replacementDocId) =>
@@ -203,7 +226,9 @@ export const useStore = create(
             ...state.replacements,
             [absentDocId]: replacementDocId,
           },
-          actionQueue: [...(state.actionQueue || []), { type: 'SET_REPLACEMENT', payload: { absentDocId, replacementDocId } }]
+          actionQueue: [...(state.actionQueue || []), { type: 'SET_REPLACEMENT', payload: { absentDocId, replacementDocId } }],
+          lastLocalEditTime: Date.now(),
+          syncState: 'saving'
         })),
 
       setSchedule: (doctorId, dateStr, shiftData) =>
@@ -217,7 +242,12 @@ export const useStore = create(
           } else {
             docSch[dateStr] = shiftData;
           }
-          return { schedule: { ...state.schedule, [doctorId]: docSch }, actionQueue: newQueue };
+          return { 
+            schedule: { ...state.schedule, [doctorId]: docSch }, 
+            actionQueue: newQueue,
+            lastLocalEditTime: Date.now(),
+            syncState: 'saving'
+          };
         }),
 
       clearScheduleForMonth: (monthStr) =>
@@ -233,7 +263,12 @@ export const useStore = create(
               }
             });
           });
-          return { schedule: newSchedule, actionQueue: newQueue };
+          return { 
+            schedule: newSchedule, 
+            actionQueue: newQueue,
+            lastLocalEditTime: Date.now(),
+            syncState: 'saving'
+          };
         }),
 
       
@@ -262,12 +297,14 @@ export const useStore = create(
           
           return {
             schedule: updatedSchedule,
-            actionQueue: [...(state.actionQueue || []), { type: 'BULK_SET_SCHEDULE', payload: { monthStr, newSchedule } }]
+            actionQueue: [...(state.actionQueue || []), { type: 'BULK_SET_SCHEDULE', payload: { monthStr, newSchedule } }],
+            lastLocalEditTime: Date.now(),
+            syncState: 'saving'
           };
         }),
 
       
-      mergeCloudData: (data, reqMonth) => set((state) => {
+      mergeCloudData: (data, reqMonth, options = {}) => set((state) => {
         const newState = JSON.parse(JSON.stringify(state)); // Deep clone for safety
         
         // 1. Settings
@@ -289,6 +326,10 @@ export const useStore = create(
           });
         }
 
+        // Safety checks for local modifications
+        const hasPendingActions = Boolean(newState.actionQueue && newState.actionQueue.length > 0);
+        const isRecentlyEdited = Date.now() - (newState.lastLocalEditTime || 0) < 30000;
+
         // 3. Wishes
         let cloudWishesCount = 0;
         if (data.wishes) {
@@ -300,18 +341,17 @@ export const useStore = create(
             }
           }
         }
-        // Очищаем и применяем пожелания только если в облаке реально есть данные за этот месяц!
-        if (cloudWishesCount > 0) {
+        if (!hasPendingActions && (cloudWishesCount > 0 || options.force)) {
           if (!newState.wishes) newState.wishes = {};
-          // Remove local wishes for this month
-          for (let docId in newState.wishes) {
-            for (let date in newState.wishes[docId]) {
-              if (date.startsWith(reqMonth)) {
-                delete newState.wishes[docId][date];
+          if (options.force) {
+            for (let docId in newState.wishes) {
+              for (let date in newState.wishes[docId]) {
+                if (date.startsWith(reqMonth)) {
+                  delete newState.wishes[docId][date];
+                }
               }
             }
           }
-          // Apply cloud wishes
           for (let docId in data.wishes) {
             if (!newState.wishes[docId]) newState.wishes[docId] = {};
             for (let date in data.wishes[docId]) {
@@ -323,6 +363,17 @@ export const useStore = create(
         }
 
         // 4. Schedule
+        let localScheduleCount = 0;
+        if (newState.schedule) {
+          for (let docId in newState.schedule) {
+            for (let date in newState.schedule[docId]) {
+              if (date.startsWith(reqMonth)) {
+                localScheduleCount++;
+              }
+            }
+          }
+        }
+
         let cloudScheduleCount = 0;
         if (data.schedule) {
           for (let docId in data.schedule) {
@@ -333,18 +384,33 @@ export const useStore = create(
             }
           }
         }
-        // Очищаем и применяем график только если в облаке реально есть смены за этот месяц!
-        // Если в облаке по этому месяцу пусто, ни в коем случае НЕ затираем локальные данные!
-        if (cloudScheduleCount > 0) {
+
+        // Защита: если локальный график заполнен (> 15 смен), а в облаке данных существенно меньше,
+        // фоновый опрос ни в коем случае НЕ затирает локальный график!
+        const isCloudIncomplete = localScheduleCount > 15 && cloudScheduleCount < (localScheduleCount * 0.7);
+
+        if (!options.force && (hasPendingActions || isRecentlyEdited || isCloudIncomplete)) {
+          console.warn('[Sync] Skipped cloud schedule merge to protect local data:', {
+            hasPendingActions,
+            isRecentlyEdited,
+            isCloudIncomplete,
+            localScheduleCount,
+            cloudScheduleCount
+          });
+        } else if (cloudScheduleCount > 0 || options.force) {
           if (!newState.schedule) newState.schedule = {};
-          // Remove local schedule for this month
-          for (let docId in newState.schedule) {
-            for (let date in newState.schedule[docId]) {
-              if (date.startsWith(reqMonth)) {
-                delete newState.schedule[docId][date];
+          
+          if (options.force || cloudScheduleCount >= localScheduleCount) {
+            // Remove local schedule for this month
+            for (let docId in newState.schedule) {
+              for (let date in newState.schedule[docId]) {
+                if (date.startsWith(reqMonth)) {
+                  delete newState.schedule[docId][date];
+                }
               }
             }
           }
+
           // Apply cloud schedule
           for (let docId in data.schedule) {
             if (!newState.schedule[docId]) newState.schedule[docId] = {};
@@ -458,8 +524,15 @@ export const useStore = create(
         // 4. Загрузка / обновление эталонных данных за Август 2026
         let augustChanged = false;
         const newWishes = { ...(state.wishes || {}) };
-        const newLocked = state.lockedMonths ? [...state.lockedMonths] : [];
-        if (!state.hasAugust2026Data || !newSchedule['6']?.['2026-08-01']) {
+        let augShiftsCount = 0;
+        if (newSchedule) {
+          for (const dId in newSchedule) {
+            for (const date in newSchedule[dId]) {
+              if (date.startsWith('2026-08')) augShiftsCount++;
+            }
+          }
+        }
+        if (!state.hasAugust2026Data || augShiftsCount < 10) {
           augustChanged = true;
           newStaffByMonth['2026-08'] = AUGUST_2026_STAFF;
           Object.keys(AUGUST_2026_WISHES).forEach(docId => {

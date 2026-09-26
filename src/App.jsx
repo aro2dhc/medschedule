@@ -62,7 +62,15 @@ export default function App() {
   // Гарантированная инициализация эталонных данных за Август 2026 при загрузке
   useEffect(() => {
     const state = useStore.getState();
-    const hasAugSchedule = Boolean(state.schedule?.['6']?.['2026-08-01'] || state.schedule?.['10']?.['2026-08-02']);
+    let augShiftsCount = 0;
+    if (state.schedule) {
+      for (const dId in state.schedule) {
+        for (const date in state.schedule[dId]) {
+          if (date.startsWith('2026-08')) augShiftsCount++;
+        }
+      }
+    }
+    const hasAugSchedule = augShiftsCount > 10;
     const hasAugStaff = Boolean(state.staffByMonth?.['2026-08'] && state.staffByMonth['2026-08'].length > 0);
 
     const updates = {};
