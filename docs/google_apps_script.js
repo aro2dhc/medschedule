@@ -146,23 +146,33 @@ function doPost(e) {
     });
 
     if (data.actions && Array.isArray(data.actions)) {
-       // Helper to read sheet into array
-       const readSheet = (sh) => {
+       // Helper to read sheet into array with guaranteed header and column normalization
+       const readSheet = (sh, expectedCols, defaultHeader) => {
          const vals = sh.getDataRange().getValues();
-         return vals.length > 0 ? vals : [];
+         const isEmpty = vals.length === 0 || 
+                         (vals.length === 1 && vals[0].every(c => c === '' || c === null || c === undefined));
+         if (isEmpty) {
+           return [defaultHeader];
+         }
+         // Ensure first row is the header
+         if (vals[0].length < expectedCols || !vals[0][0]) {
+           vals[0] = defaultHeader;
+         }
+         // Pad or normalize each row to expectedCols
+         return vals.map((row, idx) => {
+           if (idx === 0) return defaultHeader;
+           const newRow = [];
+           for (let c = 0; c < expectedCols; c++) {
+             newRow.push(row[c] !== undefined ? row[c] : '');
+           }
+           return newRow;
+         });
        };
        
-       let schData = readSheet(sheets["Schedule"]);
-       if (schData.length === 0) schData = [["docId", "date", "shift", "wardId", "isExtra", "customTime"]];
-       
-       let wishData = readSheet(sheets["Wishes"]);
-       if (wishData.length === 0) wishData = [["docId", "date", "wish"]];
-       
-       let staffData = readSheet(sheets["Staff"]);
-       if (staffData.length === 0) staffData = [["id", "name", "role", "wardPriority", "rate", "isMaternity", "month"]];
-
-       let repData = readSheet(sheets["Replacements"]);
-       if (repData.length === 0) repData = [["dayDocId", "dutyDocId"]];
+       let schData = readSheet(sheets["Schedule"], 6, ["docId", "date", "shift", "wardId", "isExtra", "customTime"]);
+       let wishData = readSheet(sheets["Wishes"], 3, ["docId", "date", "wish"]);
+       let staffData = readSheet(sheets["Staff"], 7, ["id", "name", "role", "wardPriority", "rate", "isMaternity", "month"]);
+       let repData = readSheet(sheets["Replacements"], 2, ["dayDocId", "dutyDocId"]);
 
        let setMap = {};
        const setVals = sheets["Settings"].getDataRange().getValues();
@@ -305,23 +315,25 @@ function doPost(e) {
          }
        }
 
+       // Helper to safely write back to sheet with guaranteed column dimensions
+       const writeSheet = (sh, data, expectedCols, defaultHeader) => {
+         sh.clearContents();
+         const rows = (data && data.length > 0) ? data : [defaultHeader];
+         const cleanRows = rows.map(r => {
+           const row = [];
+           for (let c = 0; c < expectedCols; c++) {
+             row.push(r[c] !== undefined ? r[c] : '');
+           }
+           return row;
+         });
+         sh.getRange(1, 1, cleanRows.length, expectedCols).setValues(cleanRows);
+       };
+
        // Write back
-       if (schChanged) {
-         sheets["Schedule"].clearContents();
-         if (schData.length > 0) sheets["Schedule"].getRange(1, 1, schData.length, schData[0].length).setValues(schData);
-       }
-       if (wishChanged) {
-         sheets["Wishes"].clearContents();
-         if (wishData.length > 0) sheets["Wishes"].getRange(1, 1, wishData.length, wishData[0].length).setValues(wishData);
-       }
-       if (staffChanged) {
-         sheets["Staff"].clearContents();
-         if (staffData.length > 0) sheets["Staff"].getRange(1, 1, staffData.length, staffData[0].length).setValues(staffData);
-       }
-       if (repChanged) {
-         sheets["Replacements"].clearContents();
-         if (repData.length > 0) sheets["Replacements"].getRange(1, 1, repData.length, repData[0].length).setValues(repData);
-       }
+       if (schChanged) writeSheet(sheets["Schedule"], schData, 6, ["docId", "date", "shift", "wardId", "isExtra", "customTime"]);
+       if (wishChanged) writeSheet(sheets["Wishes"], wishData, 3, ["docId", "date", "wish"]);
+       if (staffChanged) writeSheet(sheets["Staff"], staffData, 7, ["id", "name", "role", "wardPriority", "rate", "isMaternity", "month"]);
+       if (repChanged) writeSheet(sheets["Replacements"], repData, 2, ["dayDocId", "dutyDocId"]);
        if (setChanged) {
          sheets["Settings"].clearContents();
          const setRows = [["key", "value"]];
