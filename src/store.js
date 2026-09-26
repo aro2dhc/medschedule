@@ -60,28 +60,6 @@ export const useStore = create(
 
       // Actions
       clearActionQueue: () => set({ actionQueue: [] }),
-      loadAugust2026Data: () =>
-        set((state) => {
-          const newStaffByMonth = { ...(state.staffByMonth || {}), '2026-08': AUGUST_2026_STAFF };
-          const newWishes = { ...(state.wishes || {}) };
-          Object.keys(AUGUST_2026_WISHES).forEach(docId => {
-            newWishes[docId] = { ...(newWishes[docId] || {}), ...AUGUST_2026_WISHES[docId] };
-          });
-          const newSched = { ...(state.schedule || {}) };
-          Object.keys(AUGUST_2026_SCHEDULE).forEach(docId => {
-            newSched[docId] = { ...(newSched[docId] || {}), ...AUGUST_2026_SCHEDULE[docId] };
-          });
-          const newLocked = state.lockedMonths ? [...state.lockedMonths] : [];
-          if (!newLocked.includes('2026-08')) newLocked.push('2026-08');
-          return {
-            hasAugust2026Data: true,
-            staffByMonth: newStaffByMonth,
-            wishes: newWishes,
-            schedule: newSched,
-            lockedMonths: newLocked,
-            settings: { ...state.settings, month: '2026-08' }
-          };
-        }),
       toggleLockMonth: (monthStr) =>
         set((state) => {
           const locked = state.lockedMonths || [];
@@ -290,8 +268,19 @@ export const useStore = create(
           });
         }
 
-        // 3. Wishes (clear requested month locally, then merge)
+        // 3. Wishes
+        let cloudWishesCount = 0;
         if (data.wishes) {
+          for (let docId in data.wishes) {
+            for (let date in data.wishes[docId]) {
+              if (date.startsWith(reqMonth)) {
+                cloudWishesCount++;
+              }
+            }
+          }
+        }
+        // Очищаем и применяем пожелания только если в облаке реально есть данные за этот месяц!
+        if (cloudWishesCount > 0) {
           if (!newState.wishes) newState.wishes = {};
           // Remove local wishes for this month
           for (let docId in newState.wishes) {
@@ -305,13 +294,27 @@ export const useStore = create(
           for (let docId in data.wishes) {
             if (!newState.wishes[docId]) newState.wishes[docId] = {};
             for (let date in data.wishes[docId]) {
-              newState.wishes[docId][date] = data.wishes[docId][date];
+              if (date.startsWith(reqMonth)) {
+                newState.wishes[docId][date] = data.wishes[docId][date];
+              }
             }
           }
         }
 
-        // 4. Schedule (clear requested month locally, then merge)
+        // 4. Schedule
+        let cloudScheduleCount = 0;
         if (data.schedule) {
+          for (let docId in data.schedule) {
+            for (let date in data.schedule[docId]) {
+              if (date.startsWith(reqMonth)) {
+                cloudScheduleCount++;
+              }
+            }
+          }
+        }
+        // Очищаем и применяем график только если в облаке реально есть смены за этот месяц!
+        // Если в облаке по этому месяцу пусто, ни в коем случае НЕ затираем локальные данные!
+        if (cloudScheduleCount > 0) {
           if (!newState.schedule) newState.schedule = {};
           // Remove local schedule for this month
           for (let docId in newState.schedule) {
@@ -325,7 +328,9 @@ export const useStore = create(
           for (let docId in data.schedule) {
             if (!newState.schedule[docId]) newState.schedule[docId] = {};
             for (let date in data.schedule[docId]) {
-              newState.schedule[docId][date] = data.schedule[docId][date];
+              if (date.startsWith(reqMonth)) {
+                newState.schedule[docId][date] = data.schedule[docId][date];
+              }
             }
           }
         }

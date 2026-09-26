@@ -4,7 +4,7 @@ import { calculateBaseNorm } from '../utils/calendar';
 import { Cloud, Download, Upload, RefreshCw } from 'lucide-react';
 
 export default function SettingsTab() {
-  const { settings, updateSettings, importData, updateStaff, loadAugust2026Data } = useStore();
+  const { settings, updateSettings, importData, updateStaff } = useStore();
   const staffByMonth = useStore(state => state.staffByMonth);
   const staff = staffByMonth?.[settings.month] || [];
   const [syncStatus, setSyncStatus] = useState('');
@@ -51,9 +51,21 @@ export default function SettingsTab() {
           }
         }
       }
+      const wishActions = [];
+      for (let docId in data.wishes || {}) {
+        for (let d in data.wishes[docId]) {
+          if (d.startsWith(month)) {
+            wishActions.push({
+              type: 'SET_WISH',
+              payload: { doctorId: docId, dateStr: d, wishType: data.wishes[docId][d] }
+            });
+          }
+        }
+      }
       const actions = [
         { type: 'UPDATE_SETTINGS', payload: { newSettings: settings } },
         ...currentStaff.map(doc => ({ type: 'ADD_STAFF', payload: { doctor: doc, month } })),
+        ...wishActions,
         { type: 'BULK_SET_SCHEDULE', payload: { monthStr: month, newSchedule: currentSch } }
       ];
       const res = await fetch(settings.googleScriptUrl, {
@@ -325,19 +337,6 @@ export default function SettingsTab() {
                 className="hidden" 
               />
             </label>
-            <button
-              onClick={() => {
-                if (confirm('Загрузить официальный утвержденный график за Август 2026 года?')) {
-                  loadAugust2026Data();
-                  alert('Данные за Август 2026 года успешно загружены!');
-                }
-              }}
-              className="px-3 py-1.5 text-xs bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/40 dark:hover:bg-emerald-900/60 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 rounded-lg transition-colors flex items-center gap-1.5 font-medium"
-              title="Загрузить эталонный график АРО№2 за Август 2026"
-            >
-              <RefreshCw size={13} />
-              Загрузить график за Август 2026
-            </button>
           </div>
         </div>
       </div>
