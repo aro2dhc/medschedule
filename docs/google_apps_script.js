@@ -239,12 +239,19 @@ function doPost(e) {
            wishChanged = true;
          }
          else if (t === 'ADD_STAFF') {
-            // p.doctor is missing month context in the action payload? 
-            // Wait, we need month in ADD_STAFF action payload. 
-            // In store.js, addStaff adds to state.settings.month.
-            // For now let's just append.
-            staffData.push([p.doctor.id, p.doctor.name, p.doctor.role, p.doctor.wardPriority, p.doctor.rate, !!p.doctor.isMaternity, "'" + p.month]);
-            staffChanged = true;
+            let exists = false;
+            for (let i = 1; i < staffData.length; i++) {
+              let m = staffData[i][6] ? String(staffData[i][6]) : '';
+              if (m.startsWith("'")) m = m.substring(1);
+              if (String(staffData[i][0]) === String(p.doctor.id) && m === p.month) {
+                exists = true;
+                break;
+              }
+            }
+            if (!exists) {
+              staffData.push([p.doctor.id, p.doctor.name, p.doctor.role, p.doctor.wardPriority, p.doctor.rate, !!p.doctor.isMaternity, "'" + p.month]);
+              staffChanged = true;
+            }
          }
          else if (t === 'UPDATE_STAFF') {
             for (let i = 1; i < staffData.length; i++) {

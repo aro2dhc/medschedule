@@ -40,33 +40,47 @@ export default function SettingsTab() {
     setSyncStatus('Сохранение...');
     try {
       const data = useStore.getState();
-      const month = settings.month;
-      const currentStaff = data.staffByMonth?.[month] || [];
-      const currentSch = {};
-      for (let docId in data.schedule || {}) {
-        for (let d in data.schedule[docId]) {
-          if (d.startsWith(month)) {
-            if (!currentSch[docId]) currentSch[docId] = {};
-            currentSch[docId][d] = data.schedule[docId][d];
-          }
-        }
-      }
+      const allMonths = Object.keys(data.staffByMonth || {});
+      if (!allMonths.includes(settings.month)) allMonths.push(settings.month);
+
+      const staffActions = [];
+      const scheduleActions = [];
       const wishActions = [];
-      for (let docId in data.wishes || {}) {
-        for (let d in data.wishes[docId]) {
-          if (d.startsWith(month)) {
-            wishActions.push({
-              type: 'SET_WISH',
-              payload: { doctorId: docId, dateStr: d, wishType: data.wishes[docId][d] }
-            });
+
+      allMonths.forEach(m => {
+        const currentStaff = data.staffByMonth?.[m] || [];
+        currentStaff.forEach(doc => {
+          staffActions.push({ type: 'ADD_STAFF', payload: { doctor: doc, month: m } });
+        });
+
+        const currentSch = {};
+        for (let docId in data.schedule || {}) {
+          for (let d in data.schedule[docId]) {
+            if (d.startsWith(m)) {
+              if (!currentSch[docId]) currentSch[docId] = {};
+              currentSch[docId][d] = data.schedule[docId][d];
+            }
           }
         }
-      }
+        scheduleActions.push({ type: 'BULK_SET_SCHEDULE', payload: { monthStr: m, newSchedule: currentSch } });
+
+        for (let docId in data.wishes || {}) {
+          for (let d in data.wishes[docId]) {
+            if (d.startsWith(m)) {
+              wishActions.push({
+                type: 'SET_WISH',
+                payload: { doctorId: docId, dateStr: d, wishType: data.wishes[docId][d] }
+              });
+            }
+          }
+        }
+      });
+
       const actions = [
         { type: 'UPDATE_SETTINGS', payload: { newSettings: settings } },
-        ...currentStaff.map(doc => ({ type: 'ADD_STAFF', payload: { doctor: doc, month } })),
+        ...staffActions,
         ...wishActions,
-        { type: 'BULK_SET_SCHEDULE', payload: { monthStr: month, newSchedule: currentSch } }
+        ...scheduleActions
       ];
       const res = await fetch(settings.googleScriptUrl, {
         method: 'POST',
@@ -79,7 +93,6 @@ export default function SettingsTab() {
     } catch (e) {
       console.error(e);
       setSyncStatus('Ошибка сохранения');
-      setTimeout(() => setSyncStatus(''), 3000);
     }
   };
 
