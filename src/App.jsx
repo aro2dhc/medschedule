@@ -10,6 +10,7 @@ import MyScheduleTab from './components/MyScheduleTab';
 import { useStore } from './store';
 import { useCloudSync } from './utils/useCloudSync';
 import { format } from 'date-fns';
+import { AUGUST_2026_STAFF, AUGUST_2026_SCHEDULE, AUGUST_2026_WISHES } from './utils/august2026Data';
 
 
 const MONTH_NAMES = [
@@ -57,6 +58,43 @@ export default function App() {
       document.documentElement.classList.remove('dark');
     }
   }, [darkMode]);
+
+  // Гарантированная инициализация эталонных данных за Август 2026 при загрузке
+  useEffect(() => {
+    const state = useStore.getState();
+    const hasAugSchedule = Boolean(state.schedule?.['6']?.['2026-08-01'] || state.schedule?.['10']?.['2026-08-02']);
+    const hasAugStaff = Boolean(state.staffByMonth?.['2026-08'] && state.staffByMonth['2026-08'].length > 0);
+
+    const updates = {};
+    if (!hasAugStaff) {
+      updates.staffByMonth = { ...(state.staffByMonth || {}), '2026-08': AUGUST_2026_STAFF };
+    }
+    if (!hasAugSchedule) {
+      const newSched = { ...(state.schedule || {}) };
+      Object.keys(AUGUST_2026_SCHEDULE).forEach(docId => {
+        newSched[docId] = { ...(newSched[docId] || {}), ...AUGUST_2026_SCHEDULE[docId] };
+      });
+      updates.schedule = newSched;
+
+      const newWishes = { ...(state.wishes || {}) };
+      Object.keys(AUGUST_2026_WISHES).forEach(docId => {
+        newWishes[docId] = { ...(newWishes[docId] || {}), ...AUGUST_2026_WISHES[docId] };
+      });
+      updates.wishes = newWishes;
+
+      const newLocked = state.lockedMonths ? [...state.lockedMonths] : [];
+      if (!newLocked.includes('2026-08')) newLocked.push('2026-08');
+      updates.lockedMonths = newLocked;
+    }
+
+    if (state.settings.month !== '2026-08') {
+      updates.settings = { ...state.settings, month: '2026-08' };
+    }
+
+    if (Object.keys(updates).length > 0) {
+      useStore.setState(updates);
+    }
+  }, []);
 
   const tabs = [
     { id: 'staff', label: 'Сотрудники', icon: <Users size={16} /> },

@@ -80,8 +80,29 @@ export const useStore = create(
           // Если мы переключили месяц
           if (newSettings.month && newSettings.month !== state.settings.month) {
             const newMonth = newSettings.month;
-            // Если для нового месяца еще нет сотрудников, копируем из текущего
-            if (!state.staffByMonth || !state.staffByMonth[newMonth]) {
+            if (newMonth === '2026-08') {
+              const staffByMonth = state.staffByMonth || {};
+              if (!staffByMonth['2026-08'] || staffByMonth['2026-08'].length === 0) {
+                updates.staffByMonth = {
+                  ...staffByMonth,
+                  '2026-08': AUGUST_2026_STAFF
+                };
+              }
+              const hasAugSched = Boolean(state.schedule?.['6']?.['2026-08-01'] || state.schedule?.['10']?.['2026-08-02']);
+              if (!hasAugSched) {
+                const newSched = { ...(state.schedule || {}) };
+                Object.keys(AUGUST_2026_SCHEDULE).forEach(docId => {
+                  newSched[docId] = { ...(newSched[docId] || {}), ...AUGUST_2026_SCHEDULE[docId] };
+                });
+                updates.schedule = newSched;
+
+                const newWishes = { ...(state.wishes || {}) };
+                Object.keys(AUGUST_2026_WISHES).forEach(docId => {
+                  newWishes[docId] = { ...(newWishes[docId] || {}), ...AUGUST_2026_WISHES[docId] };
+                });
+                updates.wishes = newWishes;
+              }
+            } else if (!state.staffByMonth || !state.staffByMonth[newMonth]) {
                const staffByMonth = state.staffByMonth || {};
                let sourceStaff = staffByMonth[state.settings.month] || [];
                
